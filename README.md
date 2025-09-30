@@ -3,6 +3,7 @@ EUMaster4HPC Student Challenge 2025-2026 - Benchmarking AI Factories on MeluXina
 
 ## Design Proposal
 
+```text
 src/
 ├── SLURMs/
     ├── job_1.sh
@@ -15,6 +16,7 @@ src/
 ├──  out/              # Output and error files (.out/.err)
 ├──  config.yaml       # Parameters for each job
 └──  UI.py             # Master script to: 1) configure jobs 2) run jobs 3) visualize .out/.err files
+```
 
 
 
