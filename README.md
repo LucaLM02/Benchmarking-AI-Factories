@@ -12,6 +12,8 @@ src/
 │  ├─ job_1.py
 │  ├─ job_2.c
 │  └─ ...
-├─ out/              # .out/.err files
-├─ config.yaml       # parameters for each job
-├─ UI.py             # master script to a) configure jobs b) run jobs c) visualize .out/.err files
+├─ out/              # Output and error files (.out/.err)
+├─ config.yaml       # Parameters for each job
+├─ UI.py             # Master script to: 1) configure jobs 2) run jobs 3) visualize .out/.err files
+
+
