@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash -l   
 
 #SBATCH --time=00:15:00
 #SBATCH --qos=default
@@ -7,6 +7,8 @@
 #SBATCH --nodes=1           # Number of nodes
 #SBATCH --ntasks=1          # Number of tasks
 #SBATCH --ntasks-per-node=1 # Tasks per node
+#SBATCH --output=%j.out
+#SBATCH --error=%j.err
 
 # Print job info
 echo "Date              = $(date)"
