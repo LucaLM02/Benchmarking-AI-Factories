@@ -1,0 +1,18 @@
+Date              = Tue Sep 30 23:09:11 CEST 2025
+Hostname          = mel2079
+Working Directory = /home/users/u103224
+INFO:    Using cached SIF image
+time=2025-09-30T23:09:15.788+02:00 level=INFO source=routes.go:1475 msg="server config" env="map[CUDA_VISIBLE_DEVICES:0,1,2,3 GPU_DEVICE_ORDINAL:0,1,2,3 HIP_VISIBLE_DEVICES: HSA_OVERRIDE_GFX_VERSION: HTTPS_PROXY: HTTP_PROXY: NO_PROXY: OLLAMA_CONTEXT_LENGTH:4096 OLLAMA_DEBUG:INFO OLLAMA_FLASH_ATTENTION:false OLLAMA_GPU_OVERHEAD:0 OLLAMA_HOST:http://0.0.0.0:11434 OLLAMA_INTEL_GPU:false OLLAMA_KEEP_ALIVE:5m0s OLLAMA_KV_CACHE_TYPE: OLLAMA_LLM_LIBRARY: OLLAMA_LOAD_TIMEOUT:5m0s OLLAMA_MAX_LOADED_MODELS:0 OLLAMA_MAX_QUEUE:512 OLLAMA_MODELS:/home/users/u103224/.ollama/models OLLAMA_MULTIUSER_CACHE:false OLLAMA_NEW_ENGINE:false OLLAMA_NOHISTORY:false OLLAMA_NOPRUNE:false OLLAMA_NUM_PARALLEL:1 OLLAMA_ORIGINS:[http://localhost https://localhost http://localhost:* https://localhost:* http://127.0.0.1 https://127.0.0.1 http://127.0.0.1:* https://127.0.0.1:* http://0.0.0.0 https://0.0.0.0 http://0.0.0.0:* https://0.0.0.0:* app://* file://* tauri://* vscode-webview://* vscode-file://*] OLLAMA_REMOTES:[ollama.com] OLLAMA_SCHED_SPREAD:false ROCR_VISIBLE_DEVICES: http_proxy: https_proxy: no_proxy:]"
+time=2025-09-30T23:09:15.805+02:00 level=INFO source=images.go:518 msg="total blobs: 0"
+time=2025-09-30T23:09:15.806+02:00 level=INFO source=images.go:525 msg="total unused blobs removed: 0"
+time=2025-09-30T23:09:15.920+02:00 level=INFO source=routes.go:1528 msg="Listening on [::]:11434 (version 0.12.3)"
+time=2025-09-30T23:09:15.924+02:00 level=INFO source=gpu.go:217 msg="looking for compatible GPUs"
+time=2025-09-30T23:09:16.872+02:00 level=WARN source=cuda_common.go:60 msg="old CUDA driver detected - please upgrade to a newer driver for best performance" version=12.8
+time=2025-09-30T23:09:17.171+02:00 level=WARN source=cuda_common.go:60 msg="old CUDA driver detected - please upgrade to a newer driver for best performance" version=12.8
+time=2025-09-30T23:09:17.447+02:00 level=WARN source=cuda_common.go:60 msg="old CUDA driver detected - please upgrade to a newer driver for best performance" version=12.8
+time=2025-09-30T23:09:17.735+02:00 level=WARN source=cuda_common.go:60 msg="old CUDA driver detected - please upgrade to a newer driver for best performance" version=12.8
+time=2025-09-30T23:09:17.736+02:00 level=INFO source=types.go:131 msg="inference compute" id=GPU-d5fcf9d3-278d-d0a8-7db1-d6c1b0594c8b library=cuda variant=v12 compute=8.0 driver=12.8 name="NVIDIA A100-SXM4-40GB" total="39.5 GiB" available="39.1 GiB"
+time=2025-09-30T23:09:17.736+02:00 level=INFO source=types.go:131 msg="inference compute" id=GPU-261e993d-7e13-18b7-6e78-d517de37b056 library=cuda variant=v12 compute=8.0 driver=12.8 name="NVIDIA A100-SXM4-40GB" total="39.5 GiB" available="39.1 GiB"
+time=2025-09-30T23:09:17.736+02:00 level=INFO source=types.go:131 msg="inference compute" id=GPU-e63fa8b9-09b9-c44c-10a4-92a204c8a441 library=cuda variant=v12 compute=8.0 driver=12.8 name="NVIDIA A100-SXM4-40GB" total="39.5 GiB" available="39.1 GiB"
+time=2025-09-30T23:09:17.736+02:00 level=INFO source=types.go:131 msg="inference compute" id=GPU-7411cb56-7cf4-255a-7f67-abecd45f37de library=cuda variant=v12 compute=8.0 driver=12.8 name="NVIDIA A100-SXM4-40GB" total="39.5 GiB" available="39.1 GiB"
+error: *** job 3614895 CANCELLED DUE TO TIME LIMIT ***
