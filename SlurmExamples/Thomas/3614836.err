@@ -12,3 +12,4 @@ time=2025-09-30T21:42:47.603+02:00 level=INFO source=types.go:131 msg="inference
 time=2025-09-30T21:42:47.603+02:00 level=INFO source=types.go:131 msg="inference compute" id=GPU-261e993d-7e13-18b7-6e78-d517de37b056 library=cuda variant=v12 compute=8.0 driver=12.8 name="NVIDIA A100-SXM4-40GB" total="39.5 GiB" available="39.1 GiB"
 time=2025-09-30T21:42:47.603+02:00 level=INFO source=types.go:131 msg="inference compute" id=GPU-e63fa8b9-09b9-c44c-10a4-92a204c8a441 library=cuda variant=v12 compute=8.0 driver=12.8 name="NVIDIA A100-SXM4-40GB" total="39.5 GiB" available="39.1 GiB"
 time=2025-09-30T21:42:47.603+02:00 level=INFO source=types.go:131 msg="inference compute" id=GPU-7411cb56-7cf4-255a-7f67-abecd45f37de library=cuda variant=v12 compute=8.0 driver=12.8 name="NVIDIA A100-SXM4-40GB" total="39.5 GiB" available="39.1 GiB"
+error: *** job 3614836 CANCELLED DUE TO TIME LIMIT ***
