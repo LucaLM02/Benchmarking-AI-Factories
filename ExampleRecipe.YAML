@@ -1,0 +1,91 @@
+meta:
+  name: "generic-service-benchmark"
+  description: "Generic AI Factory service benchmark with CPU/GPU support"
+  author: "LucaLM02"
+  created_at: "2025-10-15T10:00:00Z"
+  commit: "a1b2c3d4" # identify version of the code used for specific benchmark
+  image_hash: "" # optionally specify image hash per service
+
+global:
+  workspace: "/scratch/bench/generic-benchmark"
+  timeout: 7200 # seconds
+  environment:
+    - BENCH_MODE=production # global env variables for all processes
+
+services:
+  - id: "service-01"
+    role: "generic-service" # object-storage, inference-server, vector-db, etc.
+    executor:
+      type: "apptainer"
+      image: "" # path to Apptainer/Singularity image
+      cmd: [] # command to start service
+      slurm:
+        nodes: 1
+        cpus: 8          # CPU cores per node
+        gpus: 0          # GPU count per node (set >0 if GPU needed)
+        mem: "32G"
+    healthcheck:
+      cmd: []          # command to check service health
+      interval: 5
+      timeout: 10
+      retries: 6
+    monitor: "prometheus-node"
+    logger: "file-compact"
+    network:
+      ports: []        # exposed ports for clients
+
+clients:
+  - id: "client-01"
+    type: "generic-client" # s3-upload, inference-load, db-query, etc.
+    executor:
+      type: "slurm"
+      slurm:
+        nodes: [1]
+        tasks_per_node: [1]
+        cpus: [4]
+        gpus: [0]          # GPU count per client node if workload is GPU-heavy
+        mem: "16G"
+    workload:
+      target: ""          # target service host:port
+      mode: ""            # upload, download, inference, query, etc.
+    monitor: "prometheus-node"
+    logger: "file-compact"
+    retries:
+      attempts: 3
+      backoff: 5
+
+monitors:
+  - id: "prometheus-node"
+    type: "prometheus"
+    config:
+      scrape_targets: []   # services to scrape
+      scrape_interval: 5
+    collect_interval: 10
+    save_as: "prom_snapshot.json"
+
+loggers:
+  - id: "file-compact"
+    type: "file"
+    paths: ["${global.workspace}/logs/*.log"]
+    format: "json"
+
+execution:
+  warmup: 60
+  duration: 600
+  replicas: 1
+  post_actions: ["collect_metrics", "collect_logs", "stop_services"]
+
+reporting:
+  outputs:
+    - type: "csv"
+      file: "metrics_summary.csv"
+    - type: "pdf"
+      file: "final_report.pdf"
+
+notifications:
+  webhook: "https://hooks.example.org/notify" # used to notify for termination or erorrs
+
+cleanup:
+  remove_containers: true
+  preserve_artifacts: false
+
