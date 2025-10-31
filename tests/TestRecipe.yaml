@@ -1,0 +1,61 @@
+meta:
+  name: local-test
+  description: "Local smoke test"
+  author: tester
+  created_at: "2025-10-31"
+global:
+  workspace: "/tmp/bench_workspace"
+  timeout: 60
+services:
+  - id: svc1
+    role: server
+    executor:
+      type: slurm
+      slurm:
+        nodes: 1
+        ntasks: 1
+      cmd: ["echo", "start-svc"]
+    monitor: mon1
+    logger: log1
+clients:
+  - id: cli1
+    type: loadgen
+    executor:
+      type: slurm
+      slurm:
+        nodes: 1
+        ntasks: 1
+      cmd: ["echo", "run-client"]
+    workload:
+      cmd: ["echo", "work"]
+    monitor: mon1
+    logger: log1
+monitors:
+  - id: mon1
+    type: prometheus
+    targets: []
+    scrape_interval: 1
+    collect_interval: 1
+    save_as: "/tmp/mon1_metrics.json"
+loggers:
+  - id: log1
+    type: file
+    path: "/tmp"
+    file_name: "log1.log"
+    format: json
+execution:
+  warmup: 0
+  duration: 2
+  poll_interval: 0.2
+  post_actions:
+    - collect_metrics
+    - stop_services
+    - "export_logs:log1"
+reporting:
+  outputs:
+    - type: json
+      file: "/tmp/report.json"
+notifications: {}
+cleanup:
+  remove_containers: false
+  preserve_artifacts: true
