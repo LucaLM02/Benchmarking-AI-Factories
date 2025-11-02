@@ -1,10 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=benchmark_test
+#SBATCH --qos=default
+#SBATCH --account=p200981
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --time=01:00:00
-#SBATCH --partition=cpu
-#SBATCH --mem=16G
+#SBATCH --time=00:15:00
+#SBATCH --partition=gpu
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 
