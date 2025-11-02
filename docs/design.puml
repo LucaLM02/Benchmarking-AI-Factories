@@ -1,0 +1,145 @@
+@startuml
+title AI Factory Benchmark – Class & Package Design
+
+' -------------------------------------------------------
+' Packages reflect your repo structure
+' -------------------------------------------------------
+package "Interface" {
+  class CLI {
+    + main(args)
+  }
+
+  class BenchmarkManager {
+    - recipe: dict
+    - recipe_path: str
+    - _workspace_overridden: bool
+    + load_recipe(path: str): void
+    + override_workspace(path: str): void
+    + validate_recipe(): void
+    + show_summary(): void
+    + run_benchmark(): void
+    + start_monitors(): void
+    + start_loggers(): void
+    + launch_service(service_cfg: dict): void
+    + launch_client(client_cfg: dict): void
+    + execute_post_actions(actions: list): void
+  }
+}
+
+package "Core" {
+  package "Abstracts" {
+    abstract class Executor {
+      + run(command: str, **kwargs) : str
+      + stop() : void
+      + status() : str
+    }
+
+    abstract class Monitor {
+      + start() : void
+      + stop() : void
+      + collect_metrics() : dict
+    }
+
+    abstract class Logger {
+      + log(message: str, level: str="INFO") : void
+      + export() : str
+    }
+  }
+
+  package "Executors" {
+    class SlurmExecutor {
+      - job_name: str
+      - nodes: int
+      - ntasks: int
+      - job_id: str
+      + run(command: str) : str
+      + stop() : void
+      + status() : str
+    }
+
+    class ApptainerExecutor {
+      - image: str
+      - nv: bool
+      - _proc
+      + run(command: str, **kwargs) : str
+      + stop() : void
+      + status() : str
+    }
+  }
+
+  package "Monitors" {
+    class PrometheusMonitor {
+      - scrape_targets: list
+      - scrape_interval: int
+      - collect_interval: int
+      - save_path: str
+      + start() : void
+      + stop() : void
+      + collect_metrics() : dict
+    }
+  }
+
+  package "Loggers" {
+    class FileLogger {
+      - log_dir: str
+      - file_name: str
+      - fmt: str
+      + log(message: str, level: str="INFO") : void
+      + export() : str
+    }
+  }
+
+  class Service {
+    - id: str
+    - role: str
+    - executor: Executor
+    - monitors: List<Monitor>
+    - loggers: List<Logger>
+    + start(command: str) : void
+    + stop() : void
+    + status() : str
+    + collect_artifacts() : void
+  }
+}
+
+' -------------------------------------------------------
+' Inheritance
+' -------------------------------------------------------
+Executor <|-- SlurmExecutor
+Executor <|-- ApptainerExecutor
+
+Monitor  <|-- PrometheusMonitor
+Logger   <|-- FileLogger
+
+' -------------------------------------------------------
+' Composition & associations
+' -------------------------------------------------------
+BenchmarkManager "1" *-- "many" Service : manages
+Service "1" *-- "1" Executor : uses
+Service "1" *-- "0..*" Monitor : observes
+Service "1" *-- "0..*" Logger  : records
+
+CLI --> BenchmarkManager : invokes
+
+' -------------------------------------------------------
+' Notes to connect with YAML recipe
+' -------------------------------------------------------
+note right of BenchmarkManager
+Reads a YAML "recipe" with:
+- meta, global
+- services[] (server-side)
+- clients[]  (client workloads)
+- monitors[], loggers[]
+- execution (warmup, duration, replicas, post_actions)
+- reporting, notifications
+end note
+
+note bottom of Service
+Each Service corresponds to:
+- a "server" or a "client" entry
+- resolved executor (e.g., Slurm)
+- zero/many monitors (e.g., Prometheus)
+- zero/many loggers  (e.g., FileLogger)
+end note
+
+@enduml

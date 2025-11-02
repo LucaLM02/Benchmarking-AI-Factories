@@ -43,6 +43,12 @@ Each component is tested independently and as part of an **end-to-end AI pipelin
 
 4. Analyze results to provide insights on performance scaling and system bottlenecks.
 
+## 🧩 UML Design
+
+The following diagram shows the class design of the Benchmarking-AI-Factories framework:
+
+![Benchmark Design Diagram](docs/design.png)
+
 ## 🚀 Quick Tutorial – How to Run the Benchmark on MeluXina
 
 Follow these steps to reproduce or execute a benchmark.
