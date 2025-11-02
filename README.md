@@ -80,7 +80,7 @@ Edit the run_benchmark.sh file to set your MeluXina project ID:
 ```bash
 PROJECT_ID="pxxxxxx"
 
-
+```
 
 ### 6️⃣ Run the benchmark
 ```bash
