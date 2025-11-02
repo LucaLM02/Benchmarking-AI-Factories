@@ -1,93 +1,59 @@
 #!/bin/bash
-#SBATCH --job-name=ai_benchmark           # Default job name (can be overridden)
-#SBATCH --nodes=1                         # Number of nodes
-#SBATCH --ntasks=1                        # Number of tasks
-#SBATCH --cpus-per-task=8                 # CPU cores per task
-#SBATCH --mem=32G                         # Memory allocation
-#SBATCH --time=00:15:00                   # Max runtime (hh:mm:ss)
-#SBATCH --output=logs/%x_%j.out           # STDOUT log file
-#SBATCH --error=logs/%x_%j.err            # STDERR log file
-#SBATCH --partition=gpu                   # Partition
+#SBATCH --job-name=benchmark_test
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --time=01:00:00
+#SBATCH --partition=cpu
+#SBATCH --mem=16G
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 
-# ============================================================
-# 1. USER CONFIGURATION
-# ============================================================
+# ------------------------------------------
+# USER CONFIGURATION
+# ------------------------------------------
+PROJECT_ID="p200981"          # your MeluXina project ID
+USER_ID="${USER}"             # automatically your username
+JOB_NAME="benchmark_run"
 
-# Usage:
-# sbatch run_benchmark.sh <recipe_path> [job_name]
-#
-# Example:
-# sbatch run_benchmark.sh Recipes/Meluxina_DataIngestionRecipe.yaml ingestion_test
+# Automatically detect repository location (portable)
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_DIR="${SCRIPT_DIR}"
 
-# The first argument is the recipe path (relative to repo root)
-RECIPE_PATH=${1:-"Recipes/Meluxina_DataIngestionRecipe.yaml"}
+echo "[INFO] Project directory resolved to: ${PROJECT_DIR}"
 
-# Optional second argument overrides the job name
-JOB_NAME=${2:-"benchmark_job"}
+# Define workspace dynamically under SCRATCH (project area)
+SCRATCH_BASE="/project/scratch/${PROJECT_ID}/${USER_ID}"
+WORKSPACE="${SCRATCH_BASE}/benchmarks/${JOB_NAME}_$(date +%Y%m%d_%H%M%S)"
 
-# ============================================================
-# 2. ENVIRONMENT SETUP
-# ============================================================
-
-# Load Apptainer (Singularity) module
-module add Apptainer
-
-# Define the project directory automatically (the current folder)
-PROJECT_DIR=$(pwd)
-
-# Define the path to the Apptainer image
-IMAGE_PATH="${PROJECT_DIR}/benchmark.sif"
-
-# Define a workspace dynamically (e.g., /scratch/$USER/benchmarks/<job_name>)
-WORKSPACE="/scratch/${USER}/benchmarks/${JOB_NAME}_$(date +%Y%m%d_%H%M%S)"
-
-# Create logs and workspace directories
+# Create workspace and log directories
 mkdir -p "${PROJECT_DIR}/logs" "${WORKSPACE}"
 
-# ============================================================
-# 3. APPTAINER IMAGE SETUP
-# ============================================================
+echo "[INFO] Workspace created at: ${WORKSPACE}"
 
-# If the container image does not exist, build it
-if [ ! -f "${IMAGE_PATH}" ]; then
-    echo "[INFO] Apptainer image not found. Building from apptainer.def..."
-    apptainer build "${IMAGE_PATH}" "${PROJECT_DIR}/apptainer.def"
-else
-    echo "[INFO] Using existing Apptainer image: ${IMAGE_PATH}"
+# Load Apptainer
+module load apptainer || { echo "[ERROR] Failed to load Apptainer"; exit 1; }
+
+# Build container if not already done
+if [ ! -f "${PROJECT_DIR}/benchmark.sif" ]; then
+    echo "[INFO] Building Apptainer image..."
+    apptainer build "${PROJECT_DIR}/benchmark.sif" "${PROJECT_DIR}/apptainer.def"
 fi
 
-# ============================================================
-# 4. PRINT JOB DETAILS
-# ============================================================
+# Path to recipe
+RECIPE_PATH="${PROJECT_DIR}/Recipes/Meluxina_DataIngestionRecipe.yaml"
 
-echo ""
-echo "=== JOB CONFIGURATION ==="
-echo "User:           ${USER}"
-echo "Host:           $(hostname)"
-echo "Project dir:    ${PROJECT_DIR}"
-echo "Recipe file:    ${RECIPE_PATH}"
-echo "Workspace dir:  ${WORKSPACE}"
-echo "Apptainer img:  ${IMAGE_PATH}"
-echo "=========================="
-echo ""
+# Debug info
+echo "[DEBUG] Checking image path: ${PROJECT_DIR}/benchmark.sif"
+ls -lh ${PROJECT_DIR}/benchmark.sif || echo "[ERROR] Image not found!"
 
-# ============================================================
-# 5. RUN BENCHMARK
-# ============================================================
-
-# The `--bind` ensures the project folder is mounted as /workspace
-# Inside the container, the benchmark script can access everything under /workspace
+# Run the benchmark
+echo "[INFO] Running benchmark..."
 apptainer run \
-    --bind "${PROJECT_DIR}:/workspace:rw" \
-    "${IMAGE_PATH}" \
-    --load "/workspace/${RECIPE_PATH}" \
-    --workspace "${WORKSPACE}" \
-    --run
+  --bind "${PROJECT_DIR}:/workspace:ro" \
+  --bind "${WORKSPACE}:/output:rw" \
+  "${PROJECT_DIR}/benchmark.sif" \
+  --load /workspace/Recipes/Meluxina_DataIngestionRecipe.yaml \
+  --workspace /output \
+  --run
 
-# ============================================================
-# 6. JOB SUMMARY
-# ============================================================
-
-echo ""
-echo "[INFO] Benchmark finished."
-echo "[INFO] Results available in: ${WORKSPACE}"
+echo "[INFO] Benchmark completed. Results available in: ${WORKSPACE}"
