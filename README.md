@@ -70,11 +70,12 @@ module add Apptainer
 ```
 
 ### 4️⃣ Clone this repository
-
+```bash
 git clone https://github.com/LucaLM02/Benchmarking-AI-Factories.git
 cd Benchmarking-AI-Factories
 
 ```
+
 ### 5️⃣ Configure project information
 Edit the run_benchmark.sh file to set your MeluXina project ID:
 ```bash
