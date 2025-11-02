@@ -16,21 +16,12 @@ PROJECT_ID="p200981"          # your MeluXina project ID
 USER_ID="${USER}"             # automatically your username
 JOB_NAME="benchmark_run"
 
-# Automatically detect repository location (portable)
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-PROJECT_DIR="${SCRIPT_DIR}"
-
-echo "[INFO] Project directory resolved to: ${PROJECT_DIR}"
+# Assume the script is executed from the project root
+PROJECT_DIR="$(pwd)"
+echo "[INFO] Current working directory set as project root: ${PROJECT_DIR}"
 
 # Define workspace dynamically under SCRATCH (project area)
 SCRATCH_BASE="/project/scratch/${PROJECT_ID}/${USER_ID}"
-
-# Ensure the SCRATCH base path exists
-if [ ! -d "${SCRATCH_BASE}" ]; then
-    echo "[WARN] Scratch base ${SCRATCH_BASE} not found. Creating it now..."
-    mkdir -p "${SCRATCH_BASE}" || { echo "[ERROR] Cannot create ${SCRATCH_BASE}"; exit 1; }
-fi
-
 
 WORKSPACE="${SCRATCH_BASE}/benchmarks/${JOB_NAME}_$(date +%Y%m%d_%H%M%S)"
 
