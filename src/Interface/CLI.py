@@ -12,7 +12,7 @@ def main():
     manager = BenchmarkManager()
 
     if args.load:
-        manager.load_recipe(args.load)
+        manager.load_recipe(args.load, override_workspace=args.workspace)
 
     if args.workspace:
         manager.override_workspace(args.workspace)

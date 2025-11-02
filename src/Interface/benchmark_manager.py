@@ -29,28 +29,38 @@ class BenchmarkManager:
         print(f"[INFO] Workspace overridden -> {expanded}")
 
 
-    def load_recipe(self, path: str):
-        """Load and parse a YAML recipe file."""
-        import os
-        import yaml
-
+    def load_recipe(self, path: str, override_workspace: str = None):
+        """Load and parse a YAML recipe file and set up the workspace."""
         if not os.path.exists(path):
             raise FileNotFoundError(f"Recipe file {path} does not exist.")
         
         with open(path, 'r') as f:
             self.recipe = yaml.safe_load(f)
 
+        # Expand environment variables
         for key, value in self.recipe.get("global", {}).items():
             if isinstance(value, str):
                 self.recipe["global"][key] = os.path.expandvars(os.path.expanduser(value))
 
-        workspace = self.recipe["global"].get("workspace", None)
+        # --- Handle workspace logic ---
+        workspace = override_workspace or self.recipe["global"].get("workspace", None)
+        
+        if workspace is None:
+            raise ValueError("global.workspace is required or must be provided via CLI.")
 
-        if workspace and not getattr(self, "_workspace_overridden", False):
-            os.makedirs(workspace, exist_ok=True)
-            print(f"[INFO] Workspace set to: {workspace}")
+        # Use existing workspace if already created (e.g., by .sh script)
+        if os.path.exists(workspace):
+            print(f"[INFO] Using existing workspace: {workspace}")
         else:
-            print(f"[INFO] Workspace will be overridden later by CLI argument.")
+            try:
+                os.makedirs(workspace, exist_ok=True)
+                print(f"[INFO] Workspace created: {workspace}")
+            except PermissionError:
+                print(f"[WARN] Cannot create workspace at {workspace}. Falling back to /output.")
+                workspace = "/output"
+
+        self.recipe["global"]["workspace"] = workspace
+        print(f"[INFO] Workspace set to: {workspace}")
 
         self.recipe_path = path
         print(f"[INFO] Recipe loaded from {path}")
