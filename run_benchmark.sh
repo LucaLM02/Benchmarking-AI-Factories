@@ -24,6 +24,14 @@ echo "[INFO] Project directory resolved to: ${PROJECT_DIR}"
 
 # Define workspace dynamically under SCRATCH (project area)
 SCRATCH_BASE="/project/scratch/${PROJECT_ID}/${USER_ID}"
+
+# Ensure the SCRATCH base path exists
+if [ ! -d "${SCRATCH_BASE}" ]; then
+    echo "[WARN] Scratch base ${SCRATCH_BASE} not found. Creating it now..."
+    mkdir -p "${SCRATCH_BASE}" || { echo "[ERROR] Cannot create ${SCRATCH_BASE}"; exit 1; }
+fi
+
+
 WORKSPACE="${SCRATCH_BASE}/benchmarks/${JOB_NAME}_$(date +%Y%m%d_%H%M%S)"
 
 # Create workspace and log directories
@@ -32,7 +40,7 @@ mkdir -p "${PROJECT_DIR}/logs" "${WORKSPACE}"
 echo "[INFO] Workspace created at: ${WORKSPACE}"
 
 # Load Apptainer
-module load apptainer || { echo "[ERROR] Failed to load Apptainer"; exit 1; }
+module add Apptainer || { echo "[ERROR] Failed to load Apptainer"; exit 1; }
 
 # Build container if not already done
 if [ ! -f "${PROJECT_DIR}/benchmark.sif" ]; then
