@@ -61,11 +61,7 @@ ssh <your-user-ID>@login.lxp.lu -p 8822 -i ~/.ssh/id_ed25519_mlux
 ```
 
 ### 2️⃣ Allocate a compute node
-Request an interactive compute node:
-```bash
-salloc --nodes=1 --ntasks=1 --time=02:00:00 --mem=32G --partition=cpu
-
-```
+Request an interactive compute node
 
 ### 3️⃣ Load required module
 ```bash
