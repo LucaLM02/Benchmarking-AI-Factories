@@ -85,13 +85,7 @@ PROJECT_ID="pxxxxxx"
 
 ### 6️⃣ Run the benchmark
 ```bash
-apptainer run \
-  --bind $(pwd):/workspace:ro \
-  --bind ${WORKSPACE}:/output:rw \
-  benchmark.sif \
-  --load /workspace/Recipes/Meluxina_DataIngestionRecipe.yaml \
-  --workspace /output \
-  --run
+sbatch run_benchmark.sh
 
 ```
 
