@@ -70,26 +70,19 @@ module add Apptainer
 ```
 
 ### 4️⃣ Clone this repository
-```bash
+
 git clone https://github.com/LucaLM02/Benchmarking-AI-Factories.git
 cd Benchmarking-AI-Factories
 
 ```
-### 5️⃣ Build the Apptainer image
+### 5️⃣ Configure project information
+Edit the run_benchmark.sh file to set your MeluXina project ID:
 ```bash
-apptainer build benchmark.sif apptainer.def
+PROJECT_ID="pxxxxxx"
 
-```
-### 6️⃣ Set up your workspace
-Define a dynamic workspace for the benchmark:
-```bash
-export JOB_NAME="job-name"
-export WORKSPACE="/scratch/${USER}/benchmarks/${JOB_NAME}_$(date +%Y%m%d_%H%M%S)"
-mkdir -p ${WORKSPACE}
 
-```
 
-### 7️⃣ Run the benchmark
+### 6️⃣ Run the benchmark
 ```bash
 apptainer run \
   --bind $(pwd):/workspace:ro \
@@ -98,6 +91,13 @@ apptainer run \
   --load /workspace/Recipes/Meluxina_DataIngestionRecipe.yaml \
   --workspace /output \
   --run
+
+```
+
+### 7️⃣ Check the job status
+
+```bash
+squeue -u $USER
 
 ```
 
