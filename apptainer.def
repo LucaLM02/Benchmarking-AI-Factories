@@ -1,0 +1,16 @@
+Bootstrap: docker
+From: python:3.10-slim
+
+%post
+    apt-get update && apt-get install -y git vim
+    pip install -r /opt/requirements.txt
+
+%files
+    requirements.txt /opt/requirements.txt
+
+%environment
+    export PYTHONPATH=/workspace/src
+    export PATH=/usr/local/bin:$PATH
+
+%runscript
+    python /workspace/src/Interface/CLI.py "$@"

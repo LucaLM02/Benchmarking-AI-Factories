@@ -14,14 +14,44 @@ class BenchmarkManager:
         self.recipe = None
         self.recipe_path = None
 
+    def override_workspace(self, new_workspace: str):
+        """Override the workspace path defined in the recipe."""
+        import os
+        if not self.recipe:
+            print("[ERROR] No recipe loaded — cannot override workspace.")
+            return
+
+        expanded = os.path.expandvars(os.path.expanduser(new_workspace))
+        os.makedirs(expanded, exist_ok=True)
+
+        self.recipe["global"]["workspace"] = expanded
+        self._workspace_overridden = True
+        print(f"[INFO] Workspace overridden -> {expanded}")
+
+
     def load_recipe(self, path: str):
         """Load and parse a YAML recipe file."""
+        import os
+        import yaml
+
         if not os.path.exists(path):
             raise FileNotFoundError(f"Recipe file {path} does not exist.")
         
         with open(path, 'r') as f:
             self.recipe = yaml.safe_load(f)
-        
+
+        for key, value in self.recipe.get("global", {}).items():
+            if isinstance(value, str):
+                self.recipe["global"][key] = os.path.expandvars(os.path.expanduser(value))
+
+        workspace = self.recipe["global"].get("workspace", None)
+
+        if workspace and not getattr(self, "_workspace_overridden", False):
+            os.makedirs(workspace, exist_ok=True)
+            print(f"[INFO] Workspace set to: {workspace}")
+        else:
+            print(f"[INFO] Workspace will be overridden later by CLI argument.")
+
         self.recipe_path = path
         print(f"[INFO] Recipe loaded from {path}")
         self.validate_recipe()
@@ -315,40 +345,6 @@ class BenchmarkManager:
             return SlurmExecutor(job_name=job_name, nodes=nodes, ntasks=ntasks)
 
         if ex_type == "apptainer":
-            # lightweight inline Apptainer executor to run apptainer exec commands
-            class _ApptainerExecutor:
-                def __init__(self, image, nv=spec.get("nv", True)):
-                    self.image = image
-                    self.nv = nv
-                    self._proc = None
-
-                def run(self, command: str, **kwargs):
-                    base = ["apptainer", "exec"]
-                    if self.nv:
-                        base.append("--nv")
-                    base.append(self.image)
-                    if isinstance(command, str):
-                        cmd_list = base + ["sh", "-c", command]
-                    else:
-                        cmd_list = base + list(command)
-                    print(f"[ApptainerExecutor] Running: {' '.join(cmd_list)}")
-                    self._proc = subprocess.Popen(cmd_list)
-                    return str(self._proc.pid)
-
-                def stop(self):
-                    if self._proc and self._proc.poll() is None:
-                        self._proc.terminate()
-                        try:
-                            self._proc.wait(timeout=5)
-                        except Exception:
-                            self._proc.kill()
-                    self._proc = None
-
-                def status(self):
-                    if not self._proc:
-                        return "no process"
-                    return "running" if self._proc.poll() is None else "finished"
-
             image = spec.get("image", "")
             return _ApptainerExecutor(image=image)
 

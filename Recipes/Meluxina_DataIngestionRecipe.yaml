@@ -7,7 +7,6 @@ meta:
   image_hash: "docker://minio/minio@sha256:abcdef1234567890"
 
 global:
-  workspace: "/scratch/$USER/bench/minio-ingest"
   timeout: 3600
   environment:
     - BENCH_MODE=production
