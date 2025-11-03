@@ -9,6 +9,15 @@ from Core.executors.slurm_executor import SlurmExecutor
 from Core.monitors.prometheus_monitor import PrometheusMonitor
 from Core.loggers.file_logger import FileLogger
 
+def expand_path(path: str, recipe: dict) -> str:
+    """Expand ${global.workspace} and environment variables in paths."""
+    if not path:
+        return path
+    if "${global.workspace}" in path:
+        path = path.replace("${global.workspace}", recipe["global"]["workspace"])
+    path = os.path.expandvars(os.path.expanduser(path))
+    return path
+
 class BenchmarkManager:
     def __init__(self):
         self.recipe = None
@@ -27,15 +36,6 @@ class BenchmarkManager:
         self.recipe["global"]["workspace"] = expanded
         self._workspace_overridden = True
         print(f"[INFO] Workspace overridden -> {expanded}")
-    
-    def expand_path(path: str, recipe: dict) -> str:
-        """Expand ${global.workspace} and environment variables in paths."""
-        if not path:
-            return path
-        if "${global.workspace}" in path:
-            path = path.replace("${global.workspace}", recipe["global"]["workspace"])
-        path = os.path.expandvars(os.path.expanduser(path))
-        return path
 
     def load_recipe(self, path: str, override_workspace: str = None):
         """Load and parse a YAML recipe file and set up the workspace."""
