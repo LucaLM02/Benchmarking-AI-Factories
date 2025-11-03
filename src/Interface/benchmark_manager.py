@@ -404,7 +404,7 @@ class BenchmarkManager:
                     raw_path = self.recipe.get("global", {}).get("workspace", "/tmp")
 
                 # Expand ${global.workspace} and env vars
-                path = expand_path(raw_path)
+                path = expand_path(raw_path, self.recipe)
                 os.makedirs(path, exist_ok=True)
 
                 file_name = logger_cfg.get("file_name", f"{lid}.log")
