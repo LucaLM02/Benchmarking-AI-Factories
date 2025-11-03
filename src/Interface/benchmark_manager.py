@@ -27,7 +27,15 @@ class BenchmarkManager:
         self.recipe["global"]["workspace"] = expanded
         self._workspace_overridden = True
         print(f"[INFO] Workspace overridden -> {expanded}")
-
+    
+    def expand_path(path: str, recipe: dict) -> str:
+        """Expand ${global.workspace} and environment variables in paths."""
+        if not path:
+            return path
+        if "${global.workspace}" in path:
+            path = path.replace("${global.workspace}", recipe["global"]["workspace"])
+        path = os.path.expandvars(os.path.expanduser(path))
+        return path
 
     def load_recipe(self, path: str, override_workspace: str = None):
         """Load and parse a YAML recipe file and set up the workspace."""
@@ -383,17 +391,32 @@ class BenchmarkManager:
     def _create_loggers_map(self):
         """Instantiate logger objects declared in recipe and return dict by id."""
         loggers_map = {}
-        for l in self.recipe.get("loggers", []):
-            lid = l.get("id")
-            ltype = l.get("type")
-            if ltype == "file":
-                path = l.get("path", self.recipe.get("global", {}).get("workspace", "/tmp"))
-                file_name = l.get("file_name", f"{lid}.log")
-                fmt = l.get("format", "json")
-                loggers_map[lid] = FileLogger(log_dir=path, file_name=file_name, fmt=fmt)
+        for logger_cfg in self.recipe.get("loggers", []):
+        lid = logger_cfg.get("id")
+        ltype = logger_cfg.get("type", "").lower()
+
+        if ltype == "file":
+            # Get path pattern (use first entry if list)
+            paths = logger_cfg.get("paths", [])
+            if isinstance(paths, list) and len(paths) > 0:
+                raw_path = paths[0]
             else:
-                print(f"[WARN] Logger type '{ltype}' not implemented for id '{lid}'.")
-        return loggers_map
+                raw_path = self.recipe.get("global", {}).get("workspace", "/tmp")
+
+            # Expand ${global.workspace} and env vars
+            path = expand_path(raw_path)
+            os.makedirs(path, exist_ok=True)
+
+            file_name = logger_cfg.get("file_name", f"{lid}.log")
+            fmt = logger_cfg.get("format", "json")
+
+            loggers_map[lid] = FileLogger(log_dir=path, file_name=file_name, fmt=fmt)
+            print(f"[INFO] Logger '{lid}' initialized -> {path}/{file_name}")
+
+        else:
+            print(f"[WARN] Logger type '{ltype}' not implemented for id '{lid}'.")
+
+    return loggers_map
 
     def launch_service(self, svc_obj: Service, cmd_spec):
         """Start a Service instance using provided command specification."""

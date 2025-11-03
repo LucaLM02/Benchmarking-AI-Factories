@@ -8,15 +8,13 @@ from Core.abstracts import Logger
 
 class FileLogger(Logger):
     """File-based logger implementation for benchmark services."""
-
-    def __init__(self, log_dir: str, file_name: str = "service.log", fmt: str = "json"):
-        self.log_dir = log_dir
+    def __init__(self, log_dir, file_name="benchmark.log", fmt="json"):
+        self.log_dir = os.path.expandvars(os.path.expanduser(log_dir))
+        os.makedirs(self.log_dir, exist_ok=True)
         self.file_name = file_name
         self.format = fmt
-        self._lock = threading.Lock()
-
-        os.makedirs(self.log_dir, exist_ok=True)
         self.log_path = os.path.join(self.log_dir, self.file_name)
+        print(f"[INFO] FileLogger initialized at {self.log_path}")
 
     def log(self, message: str, level: str = "INFO") -> None:
         """Write a log entry to file."""
