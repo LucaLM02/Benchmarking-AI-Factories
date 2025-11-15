@@ -1,34 +1,39 @@
-# src/Core/loggers/file_logger.py
-import json
 import os
+import json
 import threading
 from datetime import datetime
-from Core.abstracts import Logger
 
-
-class FileLogger(Logger):
-    """File-based logger implementation for benchmark services."""
-    def __init__(self, log_dir, file_name="benchmark.log", fmt="json"):
-        self.log_dir = os.path.expandvars(os.path.expanduser(log_dir))
-        os.makedirs(self.log_dir, exist_ok=True)
+class FileLogger:
+    def __init__(self, log_dir, file_name, fmt="json"):
+        self.log_dir = log_dir
         self.file_name = file_name
         self.format = fmt
-        self.log_path = os.path.join(self.log_dir, self.file_name)
+
+        # Full path of the log file
+        self.log_path = os.path.join(log_dir, file_name)
+
+        # Ensure directory exists
+        os.makedirs(log_dir, exist_ok=True)
+
+        # Critical fix: initialize lock
+        self._lock = threading.Lock()
+
         print(f"[INFO] FileLogger initialized at {self.log_path}")
 
-    def log(self, message: str, level: str = "INFO") -> None:
-        """Write a log entry to file."""
-        timestamp = datetime.utcnow().isoformat()
-        log_entry = {"timestamp": timestamp, "level": level, "message": message}
+    def log(self, message, level="INFO"):
+        entry = {
+            "timestamp": datetime.now().isoformat(),
+            "level": level,
+            "message": message
+        }
 
         with self._lock:
             with open(self.log_path, "a") as f:
                 if self.format == "json":
-                    f.write(json.dumps(log_entry) + "\n")
+                    f.write(json.dumps(entry) + "\n")
                 else:
-                    f.write(f"[{timestamp}] [{level}] {message}\n")
+                    f.write(f"[{entry['timestamp']}] [{level}] {message}\n")
 
-    def export(self) -> str:
-        """Return path of the log file for external processing."""
-        self.log("Exporting log file", "DEBUG")
+    def export(self):
+        """Return the path of the log file."""
         return self.log_path
