@@ -24,7 +24,8 @@ services:
         job_name: "minio-server"
         nodes: 1
         ntasks: 1
-        cpus: 2
+        gpus_per_node: 1
+        cpus_per_gpu: 2
         mem: "8G"
         partition: "gpu"
       image: "docker://minio/minio:RELEASE.2025-10-01"
@@ -48,7 +49,8 @@ clients:
         job_name: "s3-uploader-job"
         nodes: 1
         ntasks: 2
-        cpus: 2
+        gpus_per_node: 1
+        cpus_per_gpu: 2
         mem: "4G"
         partition: "gpu"
       image: "docker://python:3.10"
