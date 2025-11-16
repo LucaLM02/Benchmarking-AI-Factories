@@ -1,8 +1,9 @@
 meta:
   name: "minio-ingestion-benchmark-meluxina"
-  description: "Smoke/integration benchmark for MinIO ingestion (adapted for Meluxina cluster)."
+  description: "Benchmark MinIO ingestion distribuito su nodi HPC Meluxina."
   author: "LucaLM02"
   created_at: "2025-10-31T00:00:00Z"
+  commit: "b4e5c6d7"
 
 global:
   workspace: "/output"
@@ -10,18 +11,37 @@ global:
   environment:
     - BENCH_MODE=production
 
+# ------------------------------------------------------------------
+# SERVICES (server) → Apptainer OR Slurm
+# ------------------------------------------------------------------
 services:
   - id: "minio-01"
     role: "storage"
+
     executor:
-      type: "process"
-    command: "minio server /data --console-address :9001"
+      type: "slurm"          # lanciamo MinIO su un nodo HPC tramite Slurm
+      slurm:
+        job_name: "minio-server"
+        nodes: 1
+        ntasks: 1
+        cpus: 2
+        mem: "8G"
+        partition: "gpu"
+      image: "docker://minio/minio:RELEASE.2025-10-01"
+
+    command: >
+      apptainer exec --bind /scratch:/data {{image}} minio server /data --console-address :9001
+
     monitor: "prometheus-node"
     logger: "file-compact"
 
+# ------------------------------------------------------------------
+# CLIENTS (carico) → Slurm + Apptainer
+# ------------------------------------------------------------------
 clients:
   - id: "s3-uploader-1"
     type: "s3-upload"
+
     executor:
       type: "slurm"
       slurm:
@@ -30,24 +50,41 @@ clients:
         ntasks: 2
         cpus: 2
         mem: "4G"
+        partition: "gpu"
+      image: "docker://python:3.10"
+
     workload:
-      cmd: "python3 -c \"import time,sys; print('simulate upload'); time.sleep(2)\""
+      cmd: >
+        apptainer exec {{image}} python3 -c "import time,sys; print('simulate upload'); time.sleep(2)"
+      target: "minio-01:9000"
       mode: "upload"
       objects: 100
       size_kb: 64
+
     monitor: "prometheus-node"
     logger: "file-compact"
+
     retries:
       attempts: 2
       backoff: 5
 
+# ------------------------------------------------------------------
+# MONITORING
+# ------------------------------------------------------------------
 monitors:
   - id: "prometheus-node"
     type: "prometheus"
-    gateway_url: "http://localhost:9091/metrics"
+    config:
+      scrape_targets: ["minio-01:9100", "s3-uploader-1:9100"]
+      scrape_interval: 5
+    targets: ["minio-01:9100", "s3-uploader-1:9100"]
+    scrape_interval: 5
     collect_interval: 10
     save_as: "prom_snapshot.json"
 
+# ------------------------------------------------------------------
+# LOGGING
+# ------------------------------------------------------------------
 loggers:
   - id: "file-compact"
     type: "file"
@@ -56,14 +93,21 @@ loggers:
     file_name: "minio_ingest.log"
     format: "json"
 
+# ------------------------------------------------------------------
+# EXECUTION
+# ------------------------------------------------------------------
 execution:
   warmup: 30
-  duration: 300
+  duration: 60
+  replicas: 1
   poll_interval: 5
   post_actions:
     - collect_metrics
     - stop_services
 
+# ------------------------------------------------------------------
+# REPORTING
+# ------------------------------------------------------------------
 reporting:
   outputs:
     - type: "csv"

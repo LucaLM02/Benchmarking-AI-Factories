@@ -30,30 +30,23 @@ mkdir -p "${PROJECT_DIR}/logs" "${WORKSPACE}"
 
 echo "[INFO] Workspace created at: ${WORKSPACE}"
 
-# Load Apptainer
-module add Apptainer || { echo "[ERROR] Failed to load Apptainer"; exit 1; }
+# -----------------------------
+# MODULES (only what is needed for Python)
+# -----------------------------
+module load Python/3.10.8 || {
+    echo "[ERROR] Unable to load Python module";
+    exit 1;
+}
 
-# Build container if not already done
-if [ ! -f "${PROJECT_DIR}/benchmark.sif" ]; then
-    echo "[INFO] Building Apptainer image..."
-    apptainer build "${PROJECT_DIR}/benchmark.sif" "${PROJECT_DIR}/apptainer.def"
-fi
+# -----------------------------
+# RUN CLI (NO APPTAINER HERE)
+# -----------------------------
+echo "[INFO] Running CLI with host workspace..."
 
-# Path to recipe
-RECIPE_PATH="${PROJECT_DIR}/Recipes/Meluxina_DataIngestionRecipe.yaml"
+python3 src/Interface/CLI.py \
+    --load "${RECIPE_PATH}" \
+    --workspace "${WORKSPACE}" \
+    --run
 
-# Debug info
-echo "[DEBUG] Checking image path: ${PROJECT_DIR}/benchmark.sif"
-ls -lh ${PROJECT_DIR}/benchmark.sif || echo "[ERROR] Image not found!"
-
-# Run the benchmark
-echo "[INFO] Running benchmark..."
-apptainer run \
-  --bind "${PROJECT_DIR}:/workspace:ro" \
-  --bind "${WORKSPACE}:/output:rw" \
-  "${PROJECT_DIR}/benchmark.sif" \
-  --load /workspace/Recipes/Meluxina_DataIngestionRecipe.yaml \
-  --workspace /output \
-  --run
-
-echo "[INFO] Benchmark completed. Results available in: ${WORKSPACE}"
+echo "[INFO] Benchmark finished."
+echo "[INFO] Results available at: ${WORKSPACE}"

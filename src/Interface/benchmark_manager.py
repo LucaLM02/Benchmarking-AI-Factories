@@ -7,7 +7,7 @@ from time import sleep
 from Core.service import Service
 from Core.executors.slurm_executor import SlurmExecutor
 from Core.executors.apptainer_executor import ApptainerExecutor
-from Core.executors.process_executor import ProcessExecutor 
+from Core.executors.process_executor import ProcessExecutor
 from Core.monitors.prometheus_monitor import PrometheusMonitor
 from Core.loggers.file_logger import FileLogger
 
@@ -24,21 +24,21 @@ def expand_path(path: str, recipe: dict) -> str:
 
 
 # ------------------------------------------------------------
-# Benchmark Manager
+# Benchmark Manager (HPC-safe, multi-node, Slurm-ready)
 # ------------------------------------------------------------
 class BenchmarkManager:
     def __init__(self):
         self.recipe = None
         self.recipe_path = None
+        self._services_objs = {}
+        self._clients_objs = {}
+        self._monitors = {}
+        self._loggers = {}
 
     # ------------------------------------------------------------
-    # Load & Validation
+    # Load Recipe
     # ------------------------------------------------------------
     def override_workspace(self, new_workspace: str):
-        if not self.recipe:
-            print("[ERROR] No recipe loaded — cannot override workspace.")
-            return
-
         expanded = os.path.expandvars(os.path.expanduser(new_workspace))
         os.makedirs(expanded, exist_ok=True)
         self.recipe["global"]["workspace"] = expanded
@@ -51,15 +51,13 @@ class BenchmarkManager:
         with open(path, 'r') as f:
             self.recipe = yaml.safe_load(f)
 
-        # Expand env vars in global.*
         for key, value in self.recipe.get("global", {}).items():
             if isinstance(value, str):
                 self.recipe["global"][key] = os.path.expandvars(os.path.expanduser(value))
 
-        # Workspace setup
         workspace = override_workspace or self.recipe["global"].get("workspace")
         if not workspace:
-            raise ValueError("global.workspace missing.")
+            raise ValueError("global.workspace missing")
 
         if not os.path.exists(workspace):
             try:
@@ -71,211 +69,202 @@ class BenchmarkManager:
 
         self.recipe["global"]["workspace"] = workspace
         print(f"[INFO] Workspace set to: {workspace}")
-        print(f"[INFO] Recipe loaded from {path}")
+        print(f"[INFO] Recipe loaded from: {path}")
 
         self.validate_recipe()
 
     # ------------------------------------------------------------
-    # Validation (minimal but consistent)
+    # Validate Recipe
     # ------------------------------------------------------------
     def validate_recipe(self):
-        req_sections = [
+        required = [
             "meta", "global", "services", "clients",
             "monitors", "loggers", "execution",
             "reporting", "notifications", "cleanup"
         ]
+        for sec in required:
+            if sec not in self.recipe:
+                raise ValueError(f"Missing required section: {sec}")
 
-        for s in req_sections:
-            if s not in self.recipe:
-                raise ValueError(f"Missing required section: {s}")
+        for s in self.recipe["services"]:
+            if s["executor"]["type"] not in ("process", "slurm", "apptainer"):
+                raise ValueError(f"Invalid executor type in service {s['id']}")
 
-        # Global
-        if "workspace" not in self.recipe["global"]:
-            raise ValueError("global.workspace missing")
-
-        # Services
-        for svc in self.recipe["services"]:
-            if svc["executor"]["type"] not in ("process", "slurm", "apptainer"):
-                raise ValueError("Unknown executor type in service")
-
-        # Clients
-        for cl in self.recipe["clients"]:
-            if cl["executor"]["type"] not in ("process", "slurm", "apptainer"):
-                raise ValueError("Unknown executor type in client")
+        for c in self.recipe["clients"]:
+            if c["executor"]["type"] not in ("process", "slurm", "apptainer"):
+                raise ValueError(f"Invalid executor type in client {c['id']}")
 
         print("[INFO] Recipe validation passed (HPC-safe).")
 
     # ------------------------------------------------------------
-    # Executors
+    # Executor Factory
     # ------------------------------------------------------------
     def _create_executor(self, spec: dict):
         if not spec or "type" not in spec:
             return None
 
-        ex_type = spec["type"]
+        tp = spec["type"]
 
-        if ex_type == "slurm":
-            sl = spec.get("slurm", {})
+        if tp == "slurm":
+            s = spec.get("slurm", {})
             return SlurmExecutor(
-                job_name=sl.get("job_name", "job"),
-                nodes=sl.get("nodes", 1),
-                ntasks=sl.get("ntasks", 1)
+                job_name=s.get("job_name", "job"),
+                nodes=s.get("nodes", 1),
+                ntasks=s.get("ntasks", 1),
+                cpus=s.get("cpus", 1),
+                mem=s.get("mem", "2G"),
+                partition=s.get("partition", "cpu"),
+                image=spec.get("image", None)  # optional Apptainer
             )
 
-        if ex_type == "apptainer":
-            return ApptainerExecutor(image=spec.get("image", ""))
+        if tp == "apptainer":
+            return ApptainerExecutor(image=spec.get("image"))
 
-        if ex_type == "process":
+        if tp == "process":
             return ProcessExecutor()
 
-        print(f"[WARN] Unknown executor type {ex_type}")
+        print(f"[WARN] Unknown executor type: {tp}")
         return None
 
     # ------------------------------------------------------------
-    # Monitors
+    # Monitors Map
     # ------------------------------------------------------------
     def _create_monitors_map(self):
-        monitors_map = {}
-        for m in self.recipe.get("monitors", []):
+        monitors = {}
+        for m in self.recipe["monitors"]:
             if m["type"] == "prometheus":
-                monitors_map[m["id"]] = PrometheusMonitor(
-                    gateway_url=m.get("gateway_url", "http://localhost:9091/metrics"),
+                monitors[m["id"]] = PrometheusMonitor(
+                    gateway_url=m.get("gateway_url", "http://localhost:9091"),
+                    scrape_interval=m.get("scrape_interval", 5),
                     collect_interval=m.get("collect_interval", 10),
-                    save_path=m.get("save_as", "metrics.json")
+                    save_path=os.path.join(
+                        self.recipe["global"]["workspace"],
+                        m.get("save_as", "metrics.json")
+                    )
                 )
             else:
                 print(f"[WARN] Unknown monitor type: {m['type']}")
-        return monitors_map
+
+        return monitors
 
     # ------------------------------------------------------------
-    # Loggers
+    # Loggers Map
     # ------------------------------------------------------------
     def _create_loggers_map(self):
-        loggers_map = {}
-        for l in self.recipe.get("loggers", []):
-            if l["type"] == "file":
-                raw = l.get("paths", [self.recipe["global"]["workspace"]])[0]
-                path = expand_path(raw, self.recipe)
-                os.makedirs(path, exist_ok=True)
-                loggers_map[l["id"]] = FileLogger(
-                    log_dir=path,
-                    file_name=l.get("file_name", "log.json"),
-                    fmt=l.get("format", "json")
-                )
-                print(f"[INFO] Logger '{l['id']}' ready -> {path}")
-        return loggers_map
+        loggers = {}
+
+        for l in self.recipe["loggers"]:
+            raw = l.get("paths", [self.recipe["global"]["workspace"]])[0]
+            path = expand_path(raw, self.recipe)
+            os.makedirs(path, exist_ok=True)
+
+            loggers[l["id"]] = FileLogger(
+                log_dir=path,
+                file_name=l.get("file_name", "log.json"),
+                fmt=l.get("format", "json")
+            )
+            print(f"[INFO] Logger '{l['id']}' initialized -> {path}/{l.get('file_name', 'log.json')}")
+
+        return loggers
 
     # ------------------------------------------------------------
-    # Launchers
+    # Launch service/client
     # ------------------------------------------------------------
-    def launch_service(self, svc_obj: Service, cmd_spec):
-        cmd = cmd_spec if isinstance(cmd_spec, str) else " ".join(cmd_spec)
+    def launch_service(self, svc_obj, cmd):
         print(f"[INFO] Launching service {svc_obj.id} -> {cmd}")
         svc_obj.start(cmd)
 
-    def launch_client(self, client_obj: Service, cmd_spec):
-        cmd = cmd_spec if isinstance(cmd_spec, str) else " ".join(cmd_spec)
-        print(f"[INFO] Launching client {client_obj.id} -> {cmd}")
-        client_obj.start(cmd)
-
-    # ------------------------------------------------------------
-    # Monitoring / Logging
-    # ------------------------------------------------------------
-    def start_monitors(self, monitors_map):
-        for mid, m in monitors_map.items():
-            try:
-                m.start()
-            except Exception as e:
-                print(f"[WARN] Cannot start monitor {mid}: {e}")
-
-    def start_loggers(self, loggers_map):
-        for lid, lg in loggers_map.items():
-            lg.log("Logger ready", "DEBUG")
+    def launch_client(self, cl_obj, cmd):
+        print(f"[INFO] Launching client {cl_obj.id} -> {cmd}")
+        cl_obj.start(cmd)
 
     # ------------------------------------------------------------
     # Post Actions
     # ------------------------------------------------------------
     def execute_post_actions(self, actions):
         print("[INFO] Executing post-actions...")
+
         for act in actions:
             if act == "collect_metrics":
-                for sid, s in self._services_objs.items():
-                    s.collect_metrics()
-                for cid, c in self._clients_objs.items():
-                    c.collect_metrics()
+                for obj in list(self._services_objs.values()) + list(self._clients_objs.values()):
+                    obj.collect_metrics()
 
             elif act == "stop_services":
-                for s in self._services_objs.values():
-                    s.stop()
-                for c in self._clients_objs.values():
-                    c.stop()
+                for obj in list(self._services_objs.values()) + list(self._clients_objs.values()):
+                    obj.stop()
 
             else:
                 print(f"[WARN] Unknown post action: {act}")
 
     # ------------------------------------------------------------
-    # Main benchmark loop
+    # Run Benchmark (MAIN)
     # ------------------------------------------------------------
     def run_benchmark(self):
         print("[INFO] === Starting Benchmark ===")
 
-        monitors_map = self._create_monitors_map()
-        loggers_map = self._create_loggers_map()
-        self.start_monitors(monitors_map)
-        self.start_loggers(loggers_map)
+        # Init maps
+        self._monitors = self._create_monitors_map()
+        self._loggers = self._create_loggers_map()
 
-        # Build service objects
-        self._services_objs = {}
+        for m in self._monitors.values():
+            m.start()
+
+        for lg in self._loggers.values():
+            lg.log("Logger initialized", "DEBUG")
+
+        # Create services
         for svc in self.recipe["services"]:
             executor = self._create_executor(svc["executor"])
-            mon = monitors_map.get(svc.get("monitor"))
-            log = loggers_map.get(svc.get("logger"))
+            mon = self._monitors.get(svc.get("monitor"))
+            log = self._loggers.get(svc.get("logger"))
+
             self._services_objs[svc["id"]] = Service(
-                id=svc["id"], role=svc["role"],
-                executor=executor, monitor=mon, logger=log
+                id=svc["id"],
+                role=svc["role"],
+                executor=executor,
+                monitor=mon,
+                logger=log
             )
 
-        # Build client objects
-        self._clients_objs = {}
         for cl in self.recipe["clients"]:
             executor = self._create_executor(cl["executor"])
-            mon = monitors_map.get(cl.get("monitor"))
-            log = loggers_map.get(cl.get("logger"))
+            mon = self._monitors.get(cl.get("monitor"))
+            log = self._loggers.get(cl.get("logger"))
+
             self._clients_objs[cl["id"]] = Service(
-                id=cl["id"], role=cl["type"],
-                executor=executor, monitor=mon, logger=log
+                id=cl["id"],
+                role=cl["type"],
+                executor=executor,
+                monitor=mon,
+                logger=log
             )
 
         # Start services
         for svc in self.recipe["services"]:
-            self.launch_service(
-                self._services_objs[svc["id"]],
-                svc.get("command", "")
-            )
+            self.launch_service(self._services_objs[svc["id"]], svc["command"])
 
         # Start clients
         for cl in self.recipe["clients"]:
-            self.launch_client(
-                self._clients_objs[cl["id"]],
-                cl.get("workload", {}).get("cmd", "")
-            )
+            cmd = cl.get("workload", {}).get("cmd")
+            self.launch_client(self._clients_objs[cl["id"]], cmd)
 
-        # Runtime loop
+        # Main runtime loop
         duration = self.recipe["execution"]["duration"]
         poll = self.recipe["execution"].get("poll_interval", 5)
+
+        print(f"[INFO] Running benchmark for {duration} seconds...")
 
         start = time.time()
         while time.time() - start < duration:
             all_done = True
-            for cid, c in self._clients_objs.items():
-                st = c.status()
-                if st in ("running", None, "UNKNOWN", "PENDING"):
+            for cl in self._clients_objs.values():
+                if cl.status() in ("running", None, "UNKNOWN", "PENDING"):
                     all_done = False
                     break
             if all_done:
                 print("[INFO] All clients finished early.")
                 break
-            time.sleep(poll)
+            sleep(poll)
 
         # Post actions
         self.execute_post_actions(self.recipe["execution"].get("post_actions", []))
