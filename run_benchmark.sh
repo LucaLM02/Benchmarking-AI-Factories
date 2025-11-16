@@ -31,10 +31,38 @@ mkdir -p "${PROJECT_DIR}/logs" "${WORKSPACE}"
 echo "[INFO] Workspace created at: ${WORKSPACE}"
 
 # -----------------------------
-# MODULES (only what is needed for Python)
+# LOAD PYTHON + CREATE VENV + INSTALL REQUIREMENTS
 # -----------------------------
-module load Python/3.10.8 || {
+module load Python || {
     echo "[ERROR] Unable to load Python module";
+    exit 1;
+}
+
+VENV_DIR="${WORKSPACE}/venv"
+
+# Create venv if missing
+if [ ! -d "$VENV_DIR" ]; then
+    echo "[INFO] Creating Python virtual environment at $VENV_DIR"
+    python3 -m venv "$VENV_DIR"
+fi
+
+# Activate venv
+source "$VENV_DIR/bin/activate"
+
+# Install requirements
+REQ_FILE="${PROJECT_DIR}/requirements.txt"
+if [ -f "$REQ_FILE" ]; then
+    echo "[INFO] Installing Python dependencies from $REQ_FILE"
+    pip install --upgrade pip
+    pip install -r "$REQ_FILE"
+else
+    echo "[WARN] No requirements.txt found at $REQ_FILE"
+fi
+
+echo "[INFO] Python environment ready"
+
+module Add apptainer || {
+    echo "[ERROR] Unable to load Apptainer module";
     exit 1;
 }
 
