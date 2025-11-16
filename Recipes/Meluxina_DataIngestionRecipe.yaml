@@ -6,7 +6,7 @@ meta:
   commit: "b4e5c6d7"
 
 global:
-  workspace: "/output"
+  workspace: "${WORKSPACE}"
   timeout: 3600
   environment:
     - BENCH_MODE=production

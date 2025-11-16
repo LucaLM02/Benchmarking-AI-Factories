@@ -77,6 +77,7 @@ echo "[INFO] Running CLI with host workspace..."
 
 python3 src/Interface/CLI.py \
     --load "${RECIPE_PATH}" \
+    --workspace "${WORKSPACE}" \
     --run
 
 echo "[INFO] Benchmark finished."
