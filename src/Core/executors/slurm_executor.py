@@ -1,48 +1,47 @@
 import subprocess
 from Core.abstracts import Executor
 
+
 class SlurmExecutor(Executor):
-    def __init__(
-        self,
-        job_name="service_job",
-        nodes=1,
-        ntasks=1,
-        cpus_per_task=1,
-        mem="4G",
-        time="00:30:00",
-        partition="cpu",
-        account="p200981",
-        gres=None,        # es: "gpu:1"
-        image=None        # opzionale: usato dal BenchmarkManager per sostituire {{image}}
-    ):
+    """
+    HPC GPU-based Slurm executor.
+    Always submits jobs to GPU nodes in MeluXina.
+    """
+
+    def __init__(self,
+                 job_name="gpu_job",
+                 nodes=1,
+                 ntasks=1,
+                 gpus_per_node=1,
+                 cpus_per_gpu=4,
+                 mem="16G",
+                 partition="gpu",
+                 image=None):
         self.job_name = job_name
         self.nodes = nodes
         self.ntasks = ntasks
-        self.cpus_per_task = cpus_per_task
+        self.gpus_per_node = gpus_per_node
+        self.cpus_per_gpu = cpus_per_gpu
         self.mem = mem
-        self.time = time
         self.partition = partition
-        self.account = account
-        self.gres = gres
         self.image = image
         self.job_id = None
 
     def run(self, command: str):
-        gres_flag = f"--gres={self.gres}" if self.gres else ""
-        image_env = f"--export=APPTAINER_IMAGE={self.image}" if self.image else "--export=ALL"
+
+        # Wrap command inside Apptainer if image is provided
+        if self.image:
+            command = f"apptainer exec {self.image} {command}"
 
         slurm_cmd = (
             f"sbatch "
             f"-N {self.nodes} "
             f"-n {self.ntasks} "
-            f"--cpus-per-task={self.cpus_per_task} "
-            f"--mem={self.mem} "
-            f"--time={self.time} "
             f"--partition={self.partition} "
-            f"--account={self.account} "
-            f"{gres_flag} "
+            f"--gres=gpu:{self.gpus_per_node} "
+            f"--cpus-per-task={self.cpus_per_gpu} "
+            f"--mem={self.mem} "
             f"--job-name={self.job_name} "
-            f"{image_env} "
             f"--wrap='{command}'"
         )
 
