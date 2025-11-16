@@ -3,8 +3,6 @@ meta:
   description: "Smoke/integration benchmark for MinIO ingestion (adapted for Meluxina cluster)."
   author: "LucaLM02"
   created_at: "2025-10-31T00:00:00Z"
-  commit: "b4e5c6d7"
-  image_hash: "docker://minio/minio@sha256:abcdef1234567890"
 
 global:
   workspace: "/output"
@@ -34,7 +32,6 @@ clients:
         mem: "4G"
     workload:
       cmd: "python3 -c \"import time,sys; print('simulate upload'); time.sleep(2)\""
-      target: "minio-01:9000"
       mode: "upload"
       objects: 100
       size_kb: 64
@@ -47,11 +44,7 @@ clients:
 monitors:
   - id: "prometheus-node"
     type: "prometheus"
-    config:
-      scrape_targets: ["minio-01:9100", "s3-uploader-1:9100"]
-      scrape_interval: 5
-    targets: ["minio-01:9100", "s3-uploader-1:9100"]
-    scrape_interval: 5
+    gateway_url: "http://localhost:9091/metrics"
     collect_interval: 10
     save_as: "prom_snapshot.json"
 
@@ -66,7 +59,6 @@ loggers:
 execution:
   warmup: 30
   duration: 300
-  replicas: 1
   poll_interval: 5
   post_actions:
     - collect_metrics

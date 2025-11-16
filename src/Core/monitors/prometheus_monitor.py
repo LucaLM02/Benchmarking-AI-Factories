@@ -1,47 +1,54 @@
-# src/Core/monitors/prometheus_monitor.py
 import requests
 import time
 import json
-import os
 from Core.abstracts import Monitor
 
 
 class PrometheusMonitor(Monitor):
-    """Prometheus-based monitor for collecting runtime metrics from services."""
+    """
+    Prometheus Pushgateway-based monitor.
+    Metrics are pushed by services/clients to a local Pushgateway
+    running inside the same Slurm node.
+    """
 
-    def __init__(self, scrape_targets, scrape_interval=5, collect_interval=10, save_path="metrics_snapshot.json"):
-        self.scrape_targets = scrape_targets
-        self.scrape_interval = scrape_interval
+    def __init__(self,
+                 gateway_url="http://localhost:9091/metrics",
+                 collect_interval=10,
+                 save_path="metrics_snapshot.json"):
+        self.gateway_url = gateway_url
         self.collect_interval = collect_interval
-        self.save_path = os.path.join(["global"],["workspace"], save_as)
+        self.save_path = save_path
         self._active = False
         self.metrics_data = []
 
-    def start(self) -> None:
-        """Start the monitoring process (non-blocking)."""
+    def start(self):
         self._active = True
-        print(f"[PrometheusMonitor] Started monitoring {len(self.scrape_targets)} targets.")
+        print(f"[PrometheusMonitor] Listening to Pushgateway at {self.gateway_url}")
 
     def collect(self):
-        """Collect metrics snapshot from all targets."""
+        """Collect one metrics snapshot from Pushgateway."""
         if not self._active:
-            print("[PrometheusMonitor] Not active, skipping collection.")
             return {}
 
-        collected = {}
-        for target in self.scrape_targets:
-            try:
-                response = requests.get(f"http://{target}/metrics", timeout=3)
-                collected[target] = response.text
-            except requests.RequestException as e:
-                collected[target] = f"Error: {e}"
-        self.metrics_data.append(collected)
-        print(f"[PrometheusMonitor] Collected metrics from {len(collected)} targets.")
-        return collected
+        try:
+            text = requests.get(self.gateway_url, timeout=3).text
+            snapshot = {
+                "timestamp": time.time(),
+                "raw": text
+            }
+            self.metrics_data.append(snapshot)
+            print("[PrometheusMonitor] Metrics snapshot collected")
+            return snapshot
+        except Exception as e:
+            print(f"[PrometheusMonitor] Error while collecting: {e}")
+            return {"error": str(e)}
 
-    def stop(self) -> None:
-        """Stop monitoring and save collected data."""
+    def stop(self):
+        """Stop monitoring and save all collected snapshots to file."""
         self._active = False
-        with open(self.save_path, "w") as f:
-            json.dump(self.metrics_data, f, indent=2)
-        print(f"[PrometheusMonitor] Metrics saved to {self.save_path}")
+        try:
+            with open(self.save_path, "w") as f:
+                json.dump(self.metrics_data, f, indent=2)
+            print(f"[PrometheusMonitor] Saved metrics to {self.save_path}")
+        except Exception as e:
+            print(f"[PrometheusMonitor] Failed to write metrics: {e}")

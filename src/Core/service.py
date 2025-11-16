@@ -1,12 +1,7 @@
-# src/Core/service.py
-from Core.loggers.file_logger import FileLogger
-from Core.monitors.prometheus_monitor import PrometheusMonitor
-from Core.executors.slurm_executor import SlurmExecutor
-
 class Service:
-    """Composable benchmark service (client or server)"""
+    """Composable benchmark service (server or client)."""
 
-    def __init__(self, id, role, executor, monitor, logger):
+    def __init__(self, id, role, executor, monitor=None, logger=None):
         self.id = id
         self.role = role
         self.executor = executor
@@ -14,22 +9,39 @@ class Service:
         self.logger = logger
 
     def start(self, command):
-        self.logger.log(f"Starting service {self.id}", "INFO")
-        self.monitor.start()
+        if self.logger:
+            self.logger.log(f"Starting service {self.id}", "INFO")
+
+        if self.monitor:
+            self.monitor.start()
+
         self.executor.run(command)
-        self.logger.log(f"Service {self.id} started successfully.", "INFO")
+
+        if self.logger:
+            self.logger.log(f"Service {self.id} started.", "INFO")
 
     def stop(self):
-        self.logger.log(f"Stopping service {self.id}", "INFO")
-        self.executor.stop()
-        self.monitor.stop()
+        if self.logger:
+            self.logger.log(f"Stopping service {self.id}", "INFO")
+
+        try:
+            self.executor.stop()
+        except Exception as e:
+            print(f"[WARN] Executor stop failed for {self.id}: {e}")
+
+        if self.monitor:
+            self.monitor.stop()
 
     def status(self):
-        status = self.executor.status()
-        self.logger.log(f"Service {self.id} status: {status}", "DEBUG")
-        return status
-    
+        st = self.executor.status()
+        if self.logger:
+            self.logger.log(f"Service {self.id} status: {st}", "DEBUG")
+        return st
+
     def collect_metrics(self):
-        metrics = self.monitor.collect()
-        self.logger.log(f"Collected metrics for service {self.id}: {metrics}", "DEBUG")
-        return metrics
+        if self.monitor:
+            metrics = self.monitor.collect()
+            if self.logger:
+                self.logger.log(f"Metrics collected for {self.id}", "DEBUG")
+            return metrics
+        return None
