@@ -25,6 +25,8 @@ SCRATCH_BASE="/project/scratch/${PROJECT_ID}/${USER_ID}"
 
 WORKSPACE="${SCRATCH_BASE}/benchmarks/${JOB_NAME}_$(date +%Y%m%d_%H%M%S)"
 
+RECIPE_PATH="${PROJECT_DIR}/Recipes/Meluxina_DataIngestionRecipe.yaml"
+
 # Create workspace and log directories
 mkdir -p "${PROJECT_DIR}/logs" "${WORKSPACE}"
 
