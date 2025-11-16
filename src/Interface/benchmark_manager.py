@@ -134,7 +134,7 @@ class BenchmarkManager:
         for m in self.recipe["monitors"]:
             if m["type"] == "prometheus":
                 monitors[m["id"]] = PrometheusMonitor(
-                    gateway_url=m.get("gateway_url", "http://localhost:9091"),
+                    scrape_targets=m.get("targets", []),
                     scrape_interval=m.get("scrape_interval", 5),
                     collect_interval=m.get("collect_interval", 10),
                     save_path=os.path.join(
