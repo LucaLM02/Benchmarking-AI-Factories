@@ -2,6 +2,7 @@
 import requests
 import time
 import json
+import os
 from Core.abstracts import Monitor
 
 
@@ -12,7 +13,7 @@ class PrometheusMonitor(Monitor):
         self.scrape_targets = scrape_targets
         self.scrape_interval = scrape_interval
         self.collect_interval = collect_interval
-        self.save_path = save_path
+        self.save_path = os.path.join(["global"],["workspace"], save_as)
         self._active = False
         self.metrics_data = []
 

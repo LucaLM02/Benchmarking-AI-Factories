@@ -7,32 +7,19 @@ meta:
   image_hash: "docker://minio/minio@sha256:abcdef1234567890"
 
 global:
-  workspace: "${PWD}/workspace"
+  workspace: "/output"
   timeout: 3600
   environment:
     - BENCH_MODE=production
 
 services:
   - id: "minio-01"
-    role: "object-storage"
+    role: "storage"
     executor:
-      type: "apptainer"
-      image: "docker://minio/minio:RELEASE.2025-10-01"   # apptainer can pull docker URIs on the cluster
-      cmd: ["minio", "server", "/data", "--console-address", ":9001"]
-      slurm:
-        nodes: 1
-        ntasks: 1
-        cpus: 4
-        mem: "8G"
-    healthcheck:
-      cmd: ["curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5
-      timeout: 10
-      retries: 6
+      type: "process"
+    command: "minio server /data --console-address :9001"
     monitor: "prometheus-node"
     logger: "file-compact"
-    network:
-      ports: [9000, 9001]
 
 clients:
   - id: "s3-uploader-1"
@@ -40,12 +27,13 @@ clients:
     executor:
       type: "slurm"
       slurm:
+        job_name: "s3-uploader-job"
         nodes: 1
         ntasks: 2
         cpus: 2
         mem: "4G"
     workload:
-      cmd: ["python3", "-c", "import time,sys; print('simulate upload'); time.sleep(2)"]  # lightweight local workload suitable for test
+      cmd: "python3 -c \"import time,sys; print('simulate upload'); time.sleep(2)\""
       target: "minio-01:9000"
       mode: "upload"
       objects: 100
@@ -59,7 +47,6 @@ clients:
 monitors:
   - id: "prometheus-node"
     type: "prometheus"
-    # provide both 'config.scrape_targets' and top-level 'targets' to match possible parser variants
     config:
       scrape_targets: ["minio-01:9100", "s3-uploader-1:9100"]
       scrape_interval: 5
@@ -71,18 +58,18 @@ monitors:
 loggers:
   - id: "file-compact"
     type: "file"
-    path: "${global.workspace}/logs"
+    paths:
+      - "${global.workspace}/logs"
     file_name: "minio_ingest.log"
     format: "json"
 
 execution:
-  warmup: 30        # shorter for cluster smoke tests
-  duration: 300     # run long enough to exercise workload but short for CI/cluster smoke
+  warmup: 30
+  duration: 300
   replicas: 1
   poll_interval: 5
   post_actions:
     - collect_metrics
-    - collect_logs
     - stop_services
 
 reporting:
@@ -93,7 +80,7 @@ reporting:
       file: "${global.workspace}/final_report.pdf"
 
 notifications:
-  webhook: ""   # leave empty for cluster tests; set if needed
+  webhook: ""
 
 cleanup:
   remove_containers: true

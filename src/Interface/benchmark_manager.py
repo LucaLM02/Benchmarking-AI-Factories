@@ -7,6 +7,7 @@ from time import sleep
 from Core.service import Service
 from Core.executors.slurm_executor import SlurmExecutor
 from Core.executors.apptainer_executor import ApptainerExecutor
+from Core.executors.apptainer_executor import ProcessExecutor 
 from Core.monitors.prometheus_monitor import PrometheusMonitor
 from Core.loggers.file_logger import FileLogger
 
@@ -366,6 +367,9 @@ class BenchmarkManager:
         if ex_type == "apptainer":
             image = spec.get("image", "")
             return ApptainerExecutor(image=image)
+        
+        if ex_type == "process":
+            return ProcessExecutor()
 
         print(f"[WARN] Unknown executor.type '{ex_type}', using no-op executor.")
         return None
