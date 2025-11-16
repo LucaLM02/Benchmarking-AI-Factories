@@ -61,7 +61,7 @@ fi
 
 echo "[INFO] Python environment ready"
 
-module Add apptainer || {
+module add Apptainer || {
     echo "[ERROR] Unable to load Apptainer module";
     exit 1;
 }
