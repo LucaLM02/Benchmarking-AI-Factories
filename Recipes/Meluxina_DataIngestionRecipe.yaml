@@ -29,6 +29,7 @@ services:
         mem: "8G"
         partition: "gpu"
         time : "00:10:00"
+        account: "p200981" # specifico per Meluxina
       image: "docker://minio/minio:RELEASE.2025-10-01"
 
     command: >
@@ -55,6 +56,7 @@ clients:
         mem: "4G"
         partition: "gpu"
         time : "00:05:00"
+        account: "p200981"
       image: "docker://python:3.10"
 
     workload:
