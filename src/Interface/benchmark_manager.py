@@ -115,6 +115,7 @@ class BenchmarkManager:
                 cpus_per_gpu=s.get("cpus_per_gpu", 4),
                 mem=s.get("mem", "16G"),
                 partition=s.get("partition", "gpu"),
+                time=s.get("time", "00:10:00"),
                 image=spec.get("image", None)
             )
 

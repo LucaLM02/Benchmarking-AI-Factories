@@ -16,7 +16,8 @@ class SlurmExecutor(Executor):
                  cpus_per_gpu=4,
                  mem="16G",
                  partition="gpu",
-                 image=None):
+                 image=None,
+                 time="00:10:00"):
         self.job_name = job_name
         self.nodes = nodes
         self.ntasks = ntasks
@@ -26,6 +27,7 @@ class SlurmExecutor(Executor):
         self.partition = partition
         self.image = image
         self.job_id = None
+        self.time = time
 
     def run(self, command: str):
 
@@ -41,6 +43,7 @@ class SlurmExecutor(Executor):
             f"--gres=gpu:{self.gpus_per_node} "
             f"--cpus-per-task={self.cpus_per_gpu} "
             f"--mem={self.mem} "
+            f"--time={self.time} "
             f"--job-name={self.job_name} "
             f"--wrap='{command}'"
         )

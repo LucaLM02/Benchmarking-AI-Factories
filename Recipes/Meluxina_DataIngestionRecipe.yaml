@@ -28,6 +28,7 @@ services:
         cpus_per_gpu: 2
         mem: "8G"
         partition: "gpu"
+        time : "00:10:00"
       image: "docker://minio/minio:RELEASE.2025-10-01"
 
     command: >
@@ -53,6 +54,7 @@ clients:
         cpus_per_gpu: 2
         mem: "4G"
         partition: "gpu"
+        time : "00:05:00"
       image: "docker://python:3.10"
 
     workload:
