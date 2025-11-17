@@ -39,6 +39,15 @@ class SlurmExecutor(Executor):
         if self.image:
             command = f"apptainer exec {self.image} {command}"
 
+        # Create temporary job script
+        script_path = f"/tmp/slurm_job_{self.job_name}.sh"
+        with open(script_path, "w") as f:
+            f.write("#!/bin/bash\n")
+            f.write(command + "\n")
+
+        # Make it executable
+        subprocess.run(f"chmod +x {script_path}", shell=True)
+
         slurm_cmd = (
             f"sbatch "
             f"-N {self.nodes} "
@@ -51,7 +60,7 @@ class SlurmExecutor(Executor):
             f"--job-name={self.job_name} "
             f"--account={self.account} "
             f"--qos={self.qos} "
-            f"--wrap='{command}'"
+            f"{script_path}"
         )
 
         print(f"[SlurmExecutor] Submitting job: {slurm_cmd}")
