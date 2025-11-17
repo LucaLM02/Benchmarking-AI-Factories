@@ -111,10 +111,11 @@ class BenchmarkManager:
                 job_name=s.get("job_name", "job"),
                 nodes=s.get("nodes", 1),
                 ntasks=s.get("ntasks", 1),
-                cpus=s.get("cpus", 1),
-                mem=s.get("mem", "2G"),
-                partition=s.get("partition", "cpu"),
-                image=spec.get("image", None)  # optional Apptainer
+                gpus_per_node=s.get("gpus_per_node", 1),
+                cpus_per_gpu=s.get("cpus_per_gpu", 4),
+                mem=s.get("mem", "16G"),
+                partition=s.get("partition", "gpu"),
+                image=spec.get("image", None)
             )
 
         if tp == "apptainer":
