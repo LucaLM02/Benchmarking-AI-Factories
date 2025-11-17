@@ -18,7 +18,8 @@ class SlurmExecutor(Executor):
                  partition="gpu",
                  image=None,
                  time="00:10:00",
-                 account=None):
+                 account=None,
+                 qos=None):
         self.job_name = job_name
         self.nodes = nodes
         self.ntasks = ntasks
@@ -30,6 +31,7 @@ class SlurmExecutor(Executor):
         self.job_id = None
         self.time = time
         self.account = account
+        self.qos = qos
 
     def run(self, command: str):
 
@@ -48,6 +50,7 @@ class SlurmExecutor(Executor):
             f"--time={self.time} "
             f"--job-name={self.job_name} "
             f"--account={self.account} "
+            f"--qos={self.qos} "
             f"--wrap='{command}'"
         )
 

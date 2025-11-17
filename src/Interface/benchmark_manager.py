@@ -117,6 +117,7 @@ class BenchmarkManager:
                 partition=s.get("partition", "gpu"),
                 time=s.get("time", "00:10:00"),
                 account=s.get("account", None),
+                qos=s.get("qos", "default"),
                 image=spec.get("image", None)
             )
 

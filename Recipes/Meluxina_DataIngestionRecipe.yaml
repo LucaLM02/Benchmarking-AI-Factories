@@ -30,6 +30,7 @@ services:
         partition: "gpu"
         time : "00:10:00"
         account: "p200981" # specifico per Meluxina
+        qos: "default"
       image: "docker://minio/minio:RELEASE.2025-10-01"
 
     command: >
@@ -57,6 +58,7 @@ clients:
         partition: "gpu"
         time : "00:05:00"
         account: "p200981"
+        qos: "default"
       image: "docker://python:3.10"
 
     workload:
