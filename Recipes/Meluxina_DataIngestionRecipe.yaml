@@ -25,7 +25,11 @@ services:
       export MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
       export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
       mkdir -p ${WORKSPACE}/minio-data
-      MINIO_IMAGE_TAG=${MINIO_IMAGE_TAG:-RELEASE.2024-09-27T15-02-23Z}
+      # Default to the public "latest" tag because several Meluxina nodes do not
+      # mirror the more recent RELEASE.* tags from Docker Hub. Operators can
+      # still pin an explicit tag by exporting MINIO_IMAGE_TAG before running
+      # the benchmark.
+      MINIO_IMAGE_TAG=${MINIO_IMAGE_TAG:-latest}
       apptainer exec --bind ${WORKSPACE}/minio-data:/data docker://minio/minio:${MINIO_IMAGE_TAG} \
         minio server /data --console-address :9001 --address :9000
 
