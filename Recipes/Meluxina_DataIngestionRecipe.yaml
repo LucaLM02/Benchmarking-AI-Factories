@@ -24,6 +24,7 @@ services:
     command: |
       export MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
       export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      export MINIO_PROMETHEUS_AUTH_TYPE=${MINIO_PROMETHEUS_AUTH_TYPE:-public}
       mkdir -p ${WORKSPACE}/minio-data
       # Default to the public "latest" tag because several Meluxina nodes do not
       # mirror the more recent RELEASE.* tags from Docker Hub. Operators can
@@ -76,13 +77,11 @@ clients:
 monitors:
   - id: "prometheus-node"
     type: "prometheus"
-    config:
-      scrape_targets: ["127.0.0.1:9000"]
-      scrape_interval: 5
     targets: ["127.0.0.1:9000"]
     scrape_interval: 5
     collect_interval: 10
     save_as: "prom_snapshot.json"
+    metrics_path: "/minio/v2/metrics/cluster"
 
 # ------------------------------------------------------------------
 # LOGGING

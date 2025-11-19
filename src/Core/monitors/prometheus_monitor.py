@@ -14,11 +14,13 @@ class PrometheusMonitor(Monitor):
                  scrape_targets,
                  scrape_interval=5,
                  collect_interval=10,
-                 save_path="metrics_snapshot.json"):
+                 save_path="metrics_snapshot.json",
+                 metrics_path="/metrics"):
         self.scrape_targets = scrape_targets              # list of host:port
         self.scrape_interval = scrape_interval           # how often to scrape
         self.collect_interval = collect_interval         # how often to save buffer
         self.save_path = save_path
+        self.metrics_path = metrics_path or "/metrics"
         self._active = False
         self._buffer = []
         self._last_saved = time.time()
@@ -33,7 +35,13 @@ class PrometheusMonitor(Monitor):
 
         snapshot = {}
         for target in self.scrape_targets:
-            url = f"http://{target}/metrics"
+            if target.startswith("http://") or target.startswith("https://"):
+                url = target
+            else:
+                path = self.metrics_path
+                if path and not path.startswith("/"):
+                    path = f"/{path}"
+                url = f"http://{target}{path}"
             try:
                 r = requests.get(url, timeout=3)
                 snapshot[target] = r.text

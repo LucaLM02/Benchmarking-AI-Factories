@@ -152,10 +152,12 @@ class BenchmarkManager:
             if m["type"] == "prometheus":
                 save_dir = self.recipe["global"]["workspace"]
                 os.makedirs(save_dir, exist_ok=True)
+                scrape_targets = m.get("targets") or m.get("scrape_targets", [])
                 monitors[m["id"]] = PrometheusMonitor(
-                    scrape_targets=m.get("targets", []),
+                    scrape_targets=scrape_targets,
                     scrape_interval=m.get("scrape_interval", 5),
                     collect_interval=m.get("collect_interval", 10),
+                    metrics_path=m.get("metrics_path", "/metrics"),
                     save_path=os.path.join(
                         save_dir,
                         m.get("save_as", "metrics.json")
