@@ -205,8 +205,13 @@ class BenchmarkManager:
 
         for act in actions:
             if act == "collect_metrics":
+                seen_monitors = set()
                 for obj in list(self._services_objs.values()) + list(self._clients_objs.values()):
+                    monitor = getattr(obj, "monitor", None)
+                    if not monitor or id(monitor) in seen_monitors:
+                        continue
                     obj.collect_metrics()
+                    seen_monitors.add(id(monitor))
 
             elif act == "stop_services":
                 for obj in list(self._services_objs.values()) + list(self._clients_objs.values()):
