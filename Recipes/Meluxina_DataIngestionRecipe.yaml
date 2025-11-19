@@ -25,7 +25,8 @@ services:
       export MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
       export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
       mkdir -p ${WORKSPACE}/minio-data
-      apptainer exec --bind ${WORKSPACE}/minio-data:/data docker://minio/minio:RELEASE.2025-10-01 \
+      MINIO_IMAGE_TAG=${MINIO_IMAGE_TAG:-RELEASE.2024-09-27T15-02-23Z}
+      apptainer exec --bind ${WORKSPACE}/minio-data:/data docker://minio/minio:${MINIO_IMAGE_TAG} \
         minio server /data --console-address :9001 --address :9000
 
     healthcheck:
