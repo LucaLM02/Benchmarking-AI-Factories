@@ -7,6 +7,12 @@ class Service:
         self.executor = executor
         self.monitor = monitor
         self.logger = logger
+        self._attach_logger()
+
+    def _attach_logger(self):
+        """Forward the logger instance to the executor when supported."""
+        if self.executor and hasattr(self.executor, "attach_logger"):
+            self.executor.attach_logger(self.logger)
 
     def start(self, command):
         if self.logger:

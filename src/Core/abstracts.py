@@ -8,8 +8,8 @@ class Executor(ABC):
     """Abstract base class for all executors (Slurm, Apptainer, Local, etc.)"""
 
     @abstractmethod
-    def run(self, command: str, **kwargs) -> str:
-        """Launch a command or job. Returns job ID or process ID."""
+    def run(self, command: Any, **kwargs) -> str:
+        """Launch a command or job (string shell command or workload payload). Returns an identifier."""
         pass
 
     @abstractmethod

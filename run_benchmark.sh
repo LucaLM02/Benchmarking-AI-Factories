@@ -24,6 +24,7 @@ echo "[INFO] Current working directory set as project root: ${PROJECT_DIR}"
 SCRATCH_BASE="/project/scratch/${PROJECT_ID}/${USER_ID}"
 
 WORKSPACE="${SCRATCH_BASE}/benchmarks/${JOB_NAME}_$(date +%Y%m%d_%H%M%S)"
+export WORKSPACE
 
 RECIPE_PATH="${PROJECT_DIR}/Recipes/Meluxina_DataIngestionRecipe.yaml"
 
@@ -31,6 +32,7 @@ RECIPE_PATH="${PROJECT_DIR}/Recipes/Meluxina_DataIngestionRecipe.yaml"
 mkdir -p "${PROJECT_DIR}/logs" "${WORKSPACE}"
 
 echo "[INFO] Workspace created at: ${WORKSPACE}"
+echo "[INFO] Single-node execution: services and clients share this Slurm allocation via local processes."
 
 # -----------------------------
 # LOAD PYTHON + CREATE VENV + INSTALL REQUIREMENTS

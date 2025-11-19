@@ -1,13 +1,18 @@
 import yaml
 import os
-import subprocess
 import time
 from time import sleep
 
+import requests
+from requests.exceptions import RequestException
+
 from Core.service import Service
+from Core.server import Server
+from Core.client import Client
 from Core.executors.slurm_executor import SlurmExecutor
 from Core.executors.apptainer_executor import ApptainerExecutor
 from Core.executors.process_executor import ProcessExecutor
+from Core.executors.workload_executor import WorkloadExecutor
 from Core.monitors.prometheus_monitor import PrometheusMonitor
 from Core.loggers.file_logger import FileLogger
 
@@ -86,13 +91,18 @@ class BenchmarkManager:
             if sec not in self.recipe:
                 raise ValueError(f"Missing required section: {sec}")
 
+        valid_executors = ("process", "slurm", "apptainer", "workload")
+
         for s in self.recipe["services"]:
-            if s["executor"]["type"] not in ("process", "slurm", "apptainer"):
+            if s["executor"]["type"] not in valid_executors:
                 raise ValueError(f"Invalid executor type in service {s['id']}")
 
         for c in self.recipe["clients"]:
-            if c["executor"]["type"] not in ("process", "slurm", "apptainer"):
+            if c["executor"]["type"] not in valid_executors:
                 raise ValueError(f"Invalid executor type in client {c['id']}")
+
+            if c["executor"]["type"] == "workload" and "type" not in c.get("workload", {}):
+                raise ValueError(f"Client {c['id']} is missing workload.type for workload executor")
 
         print("[INFO] Recipe validation passed (HPC-safe).")
 
@@ -127,6 +137,9 @@ class BenchmarkManager:
         if tp == "process":
             return ProcessExecutor()
 
+        if tp == "workload":
+            return WorkloadExecutor()
+
         print(f"[WARN] Unknown executor type: {tp}")
         return None
 
@@ -137,12 +150,14 @@ class BenchmarkManager:
         monitors = {}
         for m in self.recipe["monitors"]:
             if m["type"] == "prometheus":
+                save_dir = self.recipe["global"]["workspace"]
+                os.makedirs(save_dir, exist_ok=True)
                 monitors[m["id"]] = PrometheusMonitor(
                     scrape_targets=m.get("targets", []),
                     scrape_interval=m.get("scrape_interval", 5),
                     collect_interval=m.get("collect_interval", 10),
                     save_path=os.path.join(
-                        self.recipe["global"]["workspace"],
+                        save_dir,
                         m.get("save_as", "metrics.json")
                     )
                 )
@@ -174,13 +189,11 @@ class BenchmarkManager:
     # ------------------------------------------------------------
     # Launch service/client
     # ------------------------------------------------------------
-    def launch_service(self, svc_obj, cmd):
-        print(f"[INFO] Launching service {svc_obj.id} -> {cmd}")
-        svc_obj.start(cmd)
+    def launch_service(self, svc_obj):
+        svc_obj.start_service()
 
-    def launch_client(self, cl_obj, cmd):
-        print(f"[INFO] Launching client {cl_obj.id} -> {cmd}")
-        cl_obj.start(cmd)
+    def launch_client(self, cl_obj):
+        cl_obj.start_workload()
 
     # ------------------------------------------------------------
     # Post Actions
@@ -203,6 +216,45 @@ class BenchmarkManager:
     # ------------------------------------------------------------
     # Run Benchmark (MAIN)
     # ------------------------------------------------------------
+    def _wait_for_healthcheck(self, service_id: str, cfg: dict):
+        if not cfg:
+            return
+
+        hc_type = cfg.get("type", "http")
+        timeout = cfg.get("timeout", 60)
+        interval = cfg.get("interval", 5)
+        deadline = time.time() + timeout
+
+        if hc_type != "http":
+            print(f"[WARN] Unsupported healthcheck type '{hc_type}' for {service_id}")
+            return
+
+        url = cfg.get("url")
+        expected = cfg.get("expect_status", 200)
+        request_timeout = cfg.get("request_timeout", 3)
+
+        if not url:
+            print(f"[WARN] Healthcheck for {service_id} missing URL")
+            return
+
+        print(f"[INFO] Waiting for {service_id} to become ready at {url}...")
+
+        while time.time() < deadline:
+            try:
+                response = requests.get(url, timeout=request_timeout)
+                if response.status_code == expected:
+                    print(f"[INFO] Service {service_id} is ready (HTTP {response.status_code}).")
+                    return
+                print(
+                    f"[WARN] Healthcheck {service_id} returned {response.status_code},"
+                    f" expected {expected}."
+                )
+            except RequestException as exc:
+                print(f"[WARN] Healthcheck for {service_id} failed: {exc}")
+            sleep(interval)
+
+        raise TimeoutError(f"Healthcheck timed out for service {service_id} ({url})")
+
     def run_benchmark(self):
         print("[INFO] === Starting Benchmark ===")
 
@@ -222,12 +274,13 @@ class BenchmarkManager:
             mon = self._monitors.get(svc.get("monitor"))
             log = self._loggers.get(svc.get("logger"))
 
-            self._services_objs[svc["id"]] = Service(
+            self._services_objs[svc["id"]] = Server(
                 id=svc["id"],
                 role=svc["role"],
                 executor=executor,
                 monitor=mon,
-                logger=log
+                logger=log,
+                command=svc.get("command")
             )
 
         for cl in self.recipe["clients"]:
@@ -235,22 +288,31 @@ class BenchmarkManager:
             mon = self._monitors.get(cl.get("monitor"))
             log = self._loggers.get(cl.get("logger"))
 
-            self._clients_objs[cl["id"]] = Service(
+            self._clients_objs[cl["id"]] = Client(
                 id=cl["id"],
                 role=cl["type"],
                 executor=executor,
                 monitor=mon,
-                logger=log
+                logger=log,
+                workload=cl.get("workload", {}),
+                executor_type=cl["executor"].get("type", "process")
             )
 
         # Start services
         for svc in self.recipe["services"]:
-            self.launch_service(self._services_objs[svc["id"]], svc["command"])
+            self.launch_service(self._services_objs[svc["id"]])
+            health_cfg = svc.get("healthcheck")
+            if health_cfg:
+                try:
+                    self._wait_for_healthcheck(svc["id"], health_cfg)
+                except TimeoutError as exc:
+                    print(f"[ERROR] {exc}")
+                    self.execute_post_actions(["stop_services"])
+                    raise
 
         # Start clients
         for cl in self.recipe["clients"]:
-            cmd = cl.get("workload", {}).get("cmd")
-            self.launch_client(self._clients_objs[cl["id"]], cmd)
+            self.launch_client(self._clients_objs[cl["id"]])
 
         # Main runtime loop
         duration = self.recipe["execution"]["duration"]

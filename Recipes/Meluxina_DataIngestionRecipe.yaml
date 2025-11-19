@@ -9,7 +9,7 @@ global:
   workspace: "${WORKSPACE}"
   timeout: 3600
   environment:
-    - BENCH_MODE=production
+    - BENCH_MODE=single-node
 
 # ------------------------------------------------------------------
 # SERVICES (server) → Apptainer OR Slurm
@@ -19,22 +19,21 @@ services:
     role: "storage"
 
     executor:
-      type: "slurm"          # lanciamo MinIO su un nodo HPC tramite Slurm
-      slurm:
-        job_name: "minio-server"
-        nodes: 1
-        ntasks: 1
-        gpus_per_node: 1
-        cpus_per_gpu: 2
-        mem: "8G"
-        partition: "gpu"
-        time : "00:10:00"
-        account: "p200981" # specifico per Meluxina
-        qos: "default"
-      image: "docker://minio/minio:RELEASE.2025-10-01"
+      type: "process"
 
-    command: >
-      apptainer exec --bind /scratch:/data {{image}} minio server /data --console-address :9001
+    command: |
+      export MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      mkdir -p ${WORKSPACE}/minio-data
+      apptainer exec --bind ${WORKSPACE}/minio-data:/data docker://minio/minio:RELEASE.2025-10-01 \
+        minio server /data --console-address :9001 --address :9000
+
+    healthcheck:
+      type: "http"
+      url: "http://127.0.0.1:9000/minio/health/ready"
+      expect_status: 200
+      interval: 5
+      timeout: 120
 
     monitor: "prometheus-node"
     logger: "file-compact"
@@ -47,27 +46,17 @@ clients:
     type: "s3-upload"
 
     executor:
-      type: "slurm"
-      slurm:
-        job_name: "s3-uploader-job"
-        nodes: 1
-        ntasks: 2
-        gpus_per_node: 1
-        cpus_per_gpu: 2
-        mem: "4G"
-        partition: "gpu"
-        time : "00:05:00"
-        account: "p200981"
-        qos: "default"
-      image: "docker://python:3.10"
+      type: "workload"
 
     workload:
-      cmd: >
-        apptainer exec {{image}} python3 -c "import time,sys; print('simulate upload'); time.sleep(2)"
-      target: "minio-01:9000"
-      mode: "upload"
+      type: "s3-upload"
+      endpoint: "http://127.0.0.1:9000"
+      health_path: "/minio/health/ready"
       objects: 100
       size_kb: 64
+      delay: 0.05
+      timeout: 2
+      label: "single-node-ingestion"
 
     monitor: "prometheus-node"
     logger: "file-compact"
@@ -83,9 +72,9 @@ monitors:
   - id: "prometheus-node"
     type: "prometheus"
     config:
-      scrape_targets: ["minio-01:9100", "s3-uploader-1:9100"]
+      scrape_targets: ["127.0.0.1:9000"]
       scrape_interval: 5
-    targets: ["minio-01:9100", "s3-uploader-1:9100"]
+    targets: ["127.0.0.1:9000"]
     scrape_interval: 5
     collect_interval: 10
     save_as: "prom_snapshot.json"
