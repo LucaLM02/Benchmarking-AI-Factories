@@ -3,6 +3,7 @@ PyYAML>=6.0         # per caricare/parlare con i file .yaml
 requests>=2.31.0    # utile per chiamate HTTP (webhook notifiche)
 tqdm>=4.66.0        # barre di progresso opzionali
 psutil>=5.9.0       # monitoraggio risorse CPU/memoria locali
+boto3>=1.28.0        # per interagire con AWS S3 (archiviazione risultati)
 
 # --- Logging & Monitoring ---
 prometheus_client>=0.17.0  # per integrazione base con Prometheus exporter
