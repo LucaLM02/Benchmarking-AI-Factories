@@ -153,6 +153,11 @@ class BenchmarkManager:
                 save_dir = self.recipe["global"]["workspace"]
                 os.makedirs(save_dir, exist_ok=True)
                 scrape_targets = m.get("targets") or m.get("scrape_targets", [])
+                readable_save = m.get("readable_save_as")
+                if readable_save:
+                    readable_path = readable_save if os.path.isabs(readable_save) else os.path.join(save_dir, readable_save)
+                else:
+                    readable_path = None
                 monitors[m["id"]] = PrometheusMonitor(
                     scrape_targets=scrape_targets,
                     scrape_interval=m.get("scrape_interval", 5),
@@ -161,7 +166,8 @@ class BenchmarkManager:
                     save_path=os.path.join(
                         save_dir,
                         m.get("save_as", "metrics.json")
-                    )
+                    ),
+                    readable_save_path=readable_path
                 )
             else:
                 print(f"[WARN] Unknown monitor type: {m['type']}")
