@@ -57,12 +57,11 @@ clients:
     workload:
       type: "s3-upload"
       endpoint: "http://127.0.0.1:9000"
-      health_path: "/minio/health/ready"
+      bucket: "ai-factory"
       objects: 100
-      size_kb: 64
-      delay: 0.05
-      timeout: 2
-      label: "single-node-ingestion"
+      min_kb: 64
+      max_kb: 2048
+      preprocess_ms: 10
 
     monitor: "prometheus-node"
     logger: "file-compact"
