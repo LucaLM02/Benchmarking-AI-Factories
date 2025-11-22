@@ -49,7 +49,7 @@ module add Apptainer >/dev/null 2>&1 || true
 
 mkdir -p "${REMOTE_RUN_DIR}"
 
-export PYTHONPATH="${REMOTE_PROJECT_DIR}/src:${PYTHONPATH}"
+export PYTHONPATH="${REMOTE_PROJECT_DIR}/src:${PYTHONPATH:-}"
 
 echo "[INFO] Launching Slurm workload via srun..."
 python3 src/Interface/CLI.py \
