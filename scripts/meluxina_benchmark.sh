@@ -28,10 +28,9 @@ echo "[INFO] Launching MeluXina benchmark job ${RUN_ID}..."
 ssh meluxina bash <<EOF
 set -euo pipefail
 mkdir -p "${REMOTE_WORKSPACE}"
-if [[ ! -d "${REMOTE_PROJECT_DIR}" ]]; then
-  echo "[INFO] Cloning repository into ${REMOTE_PROJECT_DIR}"
-  git clone "${REPO_URL}" "${REMOTE_PROJECT_DIR}"
-fi
+echo "[INFO] Copying project to MeluXina..."
+ssh meluxina "mkdir -p ${REMOTE_PROJECT_DIR}"
+scp -r ../Benchmarking-AI-Factories meluxina:"${REMOTE_PROJECT_DIR}/"
 
 salloc -q default -p "${SLURM_PARTITION}" --time="${SLURM_TIME_LIMIT}" -A "${PROJECT_ID}"
 
