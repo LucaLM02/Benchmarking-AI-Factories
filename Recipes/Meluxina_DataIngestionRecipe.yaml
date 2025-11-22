@@ -50,6 +50,7 @@ services:
 clients:
   - id: "s3-uploader-1"
     type: "s3-upload"
+    instances: 4
 
     executor:
       type: "workload"
@@ -80,6 +81,7 @@ monitors:
     scrape_interval: 5
     collect_interval: 10
     save_as: "prom_snapshot.json"
+    grafana_save_as: "prom_snapshot_grafana.json"
     metrics_path: "/minio/v2/metrics/cluster"
 
 # ------------------------------------------------------------------

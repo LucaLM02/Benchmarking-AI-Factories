@@ -1,7 +1,9 @@
-import yaml
+import copy
 import os
 import time
 from time import sleep
+
+import yaml
 
 import requests
 from requests.exceptions import RequestException
@@ -104,6 +106,10 @@ class BenchmarkManager:
             if c["executor"]["type"] == "workload" and "type" not in c.get("workload", {}):
                 raise ValueError(f"Client {c['id']} is missing workload.type for workload executor")
 
+            instances = int(c.get("instances", 1))
+            if instances < 1:
+                raise ValueError(f"Client {c['id']} has invalid instances={instances}")
+
         print("[INFO] Recipe validation passed (HPC-safe).")
 
     # ------------------------------------------------------------
@@ -158,6 +164,11 @@ class BenchmarkManager:
                     readable_path = readable_save if os.path.isabs(readable_save) else os.path.join(save_dir, readable_save)
                 else:
                     readable_path = None
+                grafana_save = m.get("grafana_save_as")
+                if grafana_save:
+                    grafana_path = grafana_save if os.path.isabs(grafana_save) else os.path.join(save_dir, grafana_save)
+                else:
+                    grafana_path = None
                 monitors[m["id"]] = PrometheusMonitor(
                     scrape_targets=scrape_targets,
                     scrape_interval=m.get("scrape_interval", 5),
@@ -167,7 +178,8 @@ class BenchmarkManager:
                         save_dir,
                         m.get("save_as", "metrics.json")
                     ),
-                    readable_save_path=readable_path
+                    readable_save_path=readable_path,
+                    grafana_export_path=grafana_path
                 )
             else:
                 print(f"[WARN] Unknown monitor type: {m['type']}")
@@ -193,6 +205,24 @@ class BenchmarkManager:
             print(f"[INFO] Logger '{l['id']}' initialized -> {path}/{l.get('file_name', 'log.json')}")
 
         return loggers
+
+    def _expand_client_specs(self):
+        expanded = []
+        for cl in self.recipe["clients"]:
+            instances = int(cl.get("instances", 1))
+            base_id = cl["id"]
+            created_ids = []
+            for idx in range(instances):
+                replica = copy.deepcopy(cl)
+                if instances > 1:
+                    replica["id"] = f"{base_id}-{idx + 1}"
+                    replica["replica_index"] = idx + 1
+                    replica["replica_of"] = base_id
+                expanded.append(replica)
+                created_ids.append(replica["id"])
+            if instances > 1:
+                print(f"[INFO] Client '{base_id}' scaled to {instances} instances -> {', '.join(created_ids)}")
+        return expanded
 
     # ------------------------------------------------------------
     # Launch service/client
@@ -281,6 +311,9 @@ class BenchmarkManager:
         for lg in self._loggers.values():
             lg.log("Logger initialized", "DEBUG")
 
+        client_specs = self._expand_client_specs()
+        self._expanded_clients = client_specs
+
         # Create services
         for svc in self.recipe["services"]:
             executor = self._create_executor(svc["executor"])
@@ -296,7 +329,7 @@ class BenchmarkManager:
                 command=svc.get("command")
             )
 
-        for cl in self.recipe["clients"]:
+        for cl in client_specs:
             executor = self._create_executor(cl["executor"])
             mon = self._monitors.get(cl.get("monitor"))
             log = self._loggers.get(cl.get("logger"))
@@ -324,7 +357,7 @@ class BenchmarkManager:
                     raise
 
         # Start clients
-        for cl in self.recipe["clients"]:
+        for cl in client_specs:
             self.launch_client(self._clients_objs[cl["id"]])
 
         # Main runtime loop

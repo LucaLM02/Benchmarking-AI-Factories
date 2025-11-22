@@ -6,6 +6,7 @@ import time
 import requests
 
 from Core.abstracts import Monitor
+from Core.analytics.grafana_exporter import GrafanaExporter
 
 LABEL_PATTERN = re.compile(r'([a-zA-Z_][a-zA-Z0-9_]*)="((?:\\.|[^"\\])*)"')
 
@@ -22,13 +23,15 @@ class PrometheusMonitor(Monitor):
                  collect_interval=10,
                  save_path="metrics_snapshot.json",
                  metrics_path="/metrics",
-                 readable_save_path=None):
+                 readable_save_path=None,
+                 grafana_export_path=None):
         self.scrape_targets = scrape_targets              # list of host:port
         self.scrape_interval = scrape_interval           # how often to scrape
         self.collect_interval = collect_interval         # how often to save buffer
         self.save_path = save_path
         self.metrics_path = metrics_path or "/metrics"
         self.readable_save_path = readable_save_path or self._derive_readable_path(save_path)
+        self.grafana_export_path = grafana_export_path or self._derive_grafana_path(save_path)
         self._active = False
         self._buffer = []
         self._last_saved = time.time()
@@ -75,6 +78,9 @@ class PrometheusMonitor(Monitor):
             if self.readable_save_path:
                 with open(self.readable_save_path, "w") as f:
                     json.dump(readable_snapshot, f, indent=2)
+            if self.grafana_export_path:
+                exporter = GrafanaExporter()
+                exporter.export(readable_snapshot, self.grafana_export_path)
         except Exception as e:
             print(f"[PrometheusMonitor] Save error: {e}")
 
@@ -83,7 +89,9 @@ class PrometheusMonitor(Monitor):
         self._save()
         msg = f"[PrometheusMonitor] Saved metrics to {self.save_path}"
         if self.readable_save_path:
-            msg += f" (parsed view: {self.readable_save_path})"
+            msg += f" | parsed: {self.readable_save_path}"
+        if self.grafana_export_path:
+            msg += f" | grafana: {self.grafana_export_path}"
         print(msg)
 
     # ------------------------------------------------------------------
@@ -95,6 +103,13 @@ class PrometheusMonitor(Monitor):
         if not ext:
             ext = ".json"
         return f"{base}_parsed{ext}"
+
+    @staticmethod
+    def _derive_grafana_path(save_path):
+        base, ext = os.path.splitext(save_path)
+        if not ext:
+            ext = ".json"
+        return f"{base}_grafana{ext}"
 
     def _build_readable_snapshot(self):
         readable_entries = []

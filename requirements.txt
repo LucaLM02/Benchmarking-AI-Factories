@@ -23,6 +23,10 @@ matplotlib>=3.8.0
 # slurm CLI commands (sbatch, squeue, scancel) are already available in MeluXina,
 # so NO Python library needed, subprocess will handle them
 
+# --- API / orchestration ---
+fastapi>=0.110.0
+uvicorn>=0.29.0
+
 # --- Development ---
 pytest>=8.0.0        # per test
 black>=24.0.0        # per formattazione codice
