@@ -33,19 +33,9 @@ rsync -av --delete \
   --exclude "__pycache__" \
   "${PROJECT_ROOT}/" "meluxina:${REMOTE_PROJECT_DIR}/"
 
-JOB_ID=$(ssh meluxina bash <<EOF | awk '/Submitted batch job/{print \$4}' | tail -n1
-set -euo pipefail
-mkdir -p "${REMOTE_WORKSPACE}"
-cd "${REMOTE_PROJECT_DIR}"
-
-salloc -q default -p "${SLURM_PARTITION}" --time="${SLURM_TIME_LIMIT}" -A "${PROJECT_ID}"
-
-sbatch --chdir="${REMOTE_PROJECT_DIR}" \
-  --export=ALL,RUN_ID="${RUN_ID}",CONFIG_FILE="${REMOTE_PROJECT_DIR}/scripts/meluxina_cluster.conf" \
-  run_benchmark.sh
-
-EOF
-)
+ssh meluxina "mkdir -p '${REMOTE_WORKSPACE}'"
+JOB_SUBMISSION=$(ssh meluxina "cd '${REMOTE_PROJECT_DIR}' && sbatch --chdir='${REMOTE_PROJECT_DIR}' --export=ALL,RUN_ID='${RUN_ID}',CONFIG_FILE='${REMOTE_PROJECT_DIR}/scripts/meluxina_cluster.conf' run_benchmark.sh")
+JOB_ID=$(echo "${JOB_SUBMISSION}" | awk '/Submitted batch job/{print $4}')
 
 if [[ -z "${JOB_ID}" ]]; then
   echo "[ERROR] Unable to capture batch job ID. Aborting."
