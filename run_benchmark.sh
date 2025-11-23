@@ -71,6 +71,16 @@ echo "[INFO] Single-node execution: services and clients share this Slurm alloca
 # -----------------------------
 # LOAD PYTHON + CREATE VENV + INSTALL REQUIREMENTS
 # -----------------------------
+# Make sure the environment has the module function available (non-login shells may miss it)
+if ! command -v module >/dev/null 2>&1; then
+    for init_file in "/etc/profile" "/etc/profile.d/modules.sh" "/usr/share/Modules/init/bash"; do
+        if [[ -f "${init_file}" ]]; then
+            # shellcheck source=/dev/null
+            source "${init_file}"
+        fi
+    done
+fi
+
 module load Python || {
     echo "[ERROR] Unable to load Python module";
     exit 1;
