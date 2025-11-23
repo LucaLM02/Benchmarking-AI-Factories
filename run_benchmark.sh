@@ -41,7 +41,7 @@ echo "[INFO] Using project root: ${PROJECT_DIR}"
 
 # Define workspace dynamically under REMOTE_WORKSPACE (project area)
 REMOTE_WORKSPACE="${REMOTE_WORKSPACE:-/project/scratch/${PROJECT_ID}/${USER_ID}/benchmarks}"
-RUN_ID="${JOB_NAME}_$(date +%Y%m%d_%H%M%S)"
+RUN_ID="${RUN_ID:-${JOB_NAME}_$(date +%Y%m%d_%H%M%S)}"
 
 WORKSPACE="${REMOTE_WORKSPACE}/${RUN_ID}"
 export WORKSPACE

@@ -20,6 +20,7 @@ for var in "${REQUIRED_VARS[@]}"; do
   fi
 done
 
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 RUN_ID="run_$(date +%Y%m%d_%H%M%S)"
 REMOTE_RUN_DIR="${REMOTE_WORKSPACE}/${RUN_ID}"
 
@@ -27,15 +28,19 @@ echo "[INFO] Launching MeluXina benchmark job ${RUN_ID}..."
 
 echo "[INFO] Copying project to MeluXina..."
 ssh meluxina "mkdir -p '${REMOTE_PROJECT_DIR}'"
-scp -r ../Benchmarking-AI-Factories meluxina:"${REMOTE_PROJECT_DIR}"
+rsync -av --delete \
+  --exclude ".git" \
+  --exclude "__pycache__" \
+  "${PROJECT_ROOT}/" "meluxina:${REMOTE_PROJECT_DIR}/"
 
 ssh meluxina bash <<EOF
 set -euo pipefail
 mkdir -p "${REMOTE_WORKSPACE}"
+cd "${REMOTE_PROJECT_DIR}"
 
 salloc -q default -p "${SLURM_PARTITION}" --time="${SLURM_TIME_LIMIT}" -A "${PROJECT_ID}"
 
-sbatch run_benchmark.sh
+sbatch --export=ALL,RUN_ID="${RUN_ID}" run_benchmark.sh
 
 EOF
 
