@@ -25,36 +25,17 @@ REMOTE_RUN_DIR="${REMOTE_WORKSPACE}/${RUN_ID}"
 
 echo "[INFO] Launching MeluXina benchmark job ${RUN_ID}..."
 
+echo "[INFO] Copying project to MeluXina..."
+ssh meluxina "mkdir -p '${REMOTE_PROJECT_DIR}'"
+scp -r ../Benchmarking-AI-Factories meluxina:"${REMOTE_PROJECT_DIR}"
+
 ssh meluxina bash <<EOF
 set -euo pipefail
 mkdir -p "${REMOTE_WORKSPACE}"
-echo "[INFO] Copying project to MeluXina..."
-ssh meluxina "mkdir -p ${REMOTE_PROJECT_DIR}"
-scp -r ../Benchmarking-AI-Factories meluxina:"${REMOTE_PROJECT_DIR}/"
 
 salloc -q default -p "${SLURM_PARTITION}" --time="${SLURM_TIME_LIMIT}" -A "${PROJECT_ID}"
 
-cd "${REMOTE_PROJECT_DIR}"
-echo "[INFO] Updating repository..."
-git pull --ff-only || git pull --rebase
-
-module load Python >/dev/null 2>&1 || true
-python3 -m venv .venv >/dev/null 2>&1 || true
-source .venv/bin/activate
-pip install --upgrade pip >/dev/null
-pip install -r requirements.txt >/dev/null
-
-module add Apptainer >/dev/null 2>&1 || true
-
-mkdir -p "${REMOTE_RUN_DIR}"
-
-export PYTHONPATH="${REMOTE_PROJECT_DIR}/src:${PYTHONPATH:-}"
-
-echo "[INFO] Launching Slurm workload via srun..."
-python3 src/Interface/CLI.py \
-    --load "${RECIPE_PATH}" \
-    --workspace "${REMOTE_WORKSPACE}" \
-    --run
+sbatch run_benchmark.sh
 
 EOF
 
