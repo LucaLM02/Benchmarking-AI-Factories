@@ -15,7 +15,8 @@ set -euo pipefail
 # CONFIGURATION FROM meluxina_benchmark.sh
 # ------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-CONFIG_FILE="${CONFIG_FILE:-${SCRIPT_DIR}/scripts/meluxina_cluster.conf}"
+SUBMIT_DIR="${SLURM_SUBMIT_DIR:-${SCRIPT_DIR}}"
+CONFIG_FILE="${CONFIG_FILE:-${SUBMIT_DIR}/scripts/meluxina_cluster.conf}"
 
 if [[ -f "${CONFIG_FILE}" ]]; then
     # shellcheck source=/dev/null
@@ -32,7 +33,7 @@ USER_ID="${USER_ID:-${USER}}"           # automatically your username
 JOB_NAME="${JOB_NAME:-benchmark_run}"
 
 # Resolve project root from config, otherwise from this script location
-REMOTE_PROJECT_DIR="${REMOTE_PROJECT_DIR:-${SCRIPT_DIR}}"
+REMOTE_PROJECT_DIR="${REMOTE_PROJECT_DIR:-${SUBMIT_DIR}}"
 if [[ -d "${REMOTE_PROJECT_DIR}" ]]; then
     cd "${REMOTE_PROJECT_DIR}"
 fi

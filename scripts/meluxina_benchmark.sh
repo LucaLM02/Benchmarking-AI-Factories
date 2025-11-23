@@ -27,7 +27,7 @@ REMOTE_RUN_DIR="${REMOTE_WORKSPACE}/${RUN_ID}"
 echo "[INFO] Launching MeluXina benchmark job ${RUN_ID}..."
 
 echo "[INFO] Copying project to MeluXina..."
-ssh meluxina "mkdir -p '${REMOTE_PROJECT_DIR}'"
+ssh meluxina "rm -rf '${REMOTE_PROJECT_DIR}' && mkdir -p '${REMOTE_PROJECT_DIR}'"
 rsync -av --delete \
   --exclude ".git" \
   --exclude "__pycache__" \
@@ -40,7 +40,9 @@ cd "${REMOTE_PROJECT_DIR}"
 
 salloc -q default -p "${SLURM_PARTITION}" --time="${SLURM_TIME_LIMIT}" -A "${PROJECT_ID}"
 
-sbatch --export=ALL,RUN_ID="${RUN_ID}" run_benchmark.sh
+sbatch --chdir="${REMOTE_PROJECT_DIR}" \
+  --export=ALL,RUN_ID="${RUN_ID}",CONFIG_FILE="${REMOTE_PROJECT_DIR}/scripts/meluxina_cluster.conf" \
+  run_benchmark.sh
 
 EOF
 
