@@ -33,7 +33,7 @@ rsync -av --delete \
   --exclude "__pycache__" \
   "${PROJECT_ROOT}/" "meluxina:${REMOTE_PROJECT_DIR}/"
 
-ssh meluxina bash <<EOF
+JOB_ID=$(ssh meluxina bash <<EOF | awk '/Submitted batch job/{print \$4}' | tail -n1
 set -euo pipefail
 mkdir -p "${REMOTE_WORKSPACE}"
 cd "${REMOTE_PROJECT_DIR}"
@@ -45,6 +45,15 @@ sbatch --chdir="${REMOTE_PROJECT_DIR}" \
   run_benchmark.sh
 
 EOF
+)
+
+if [[ -z "${JOB_ID}" ]]; then
+  echo "[ERROR] Unable to capture batch job ID. Aborting."
+  exit 1
+fi
+
+echo "[INFO] Submitted batch job ${JOB_ID}, waiting for completion..."
+ssh meluxina "while squeue -j ${JOB_ID} -h | grep -q .; do echo \"[INFO] ${JOB_ID} still running...\"; sleep 15; done; sacct -j ${JOB_ID} --format=JobID,State --noheader | head -n1"
 
 mkdir -p "${LOCAL_RESULTS_DIR}"
 
