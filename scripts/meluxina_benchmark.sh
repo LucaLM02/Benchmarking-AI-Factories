@@ -27,23 +27,33 @@ REMOTE_RUN_DIR="${REMOTE_WORKSPACE}/${RUN_ID}"
 echo "[INFO] Launching MeluXina benchmark job ${RUN_ID}..."
 
 echo "[INFO] Copying project to MeluXina..."
-ssh meluxina "rm -rf '${REMOTE_PROJECT_DIR}' && mkdir -p '${REMOTE_PROJECT_DIR}'"
+ssh meluxina "mkdir -p '${REMOTE_PROJECT_DIR}'"
 rsync -av --delete \
   --exclude ".git" \
   --exclude "__pycache__" \
   "${PROJECT_ROOT}/" "meluxina:${REMOTE_PROJECT_DIR}/"
 
-ssh meluxina "mkdir -p '${REMOTE_WORKSPACE}'"
-JOB_SUBMISSION=$(ssh meluxina "cd '${REMOTE_PROJECT_DIR}' && sbatch --chdir='${REMOTE_PROJECT_DIR}' --export=ALL,RUN_ID='${RUN_ID}',CONFIG_FILE='${REMOTE_PROJECT_DIR}/scripts/meluxina_cluster.conf' run_benchmark.sh")
-JOB_ID=$(echo "${JOB_SUBMISSION}" | awk '/Submitted batch job/{print $4}')
+JOB_ID=$(ssh meluxina bash <<EOF
+set -euo pipefail
+cd "${REMOTE_PROJECT_DIR}"
+sbatch -q default -p "${SLURM_PARTITION}" --time="${SLURM_TIME_LIMIT}" -A "${PROJECT_ID}" \
+  --export=ALL,RUN_ID="${RUN_ID}",CONFIG_FILE="${REMOTE_PROJECT_DIR}/scripts/meluxina_cluster.conf" \
+  run_benchmark.sh | awk '{print \$4}'
+EOF
+)
 
-if [[ -z "${JOB_ID}" ]]; then
-  echo "[ERROR] Unable to capture batch job ID. Aborting."
-  exit 1
-fi
+echo "[INFO] Job submitted with ID: ${JOB_ID}"
+echo "[INFO] Waiting for job ${JOB_ID} to complete..."
 
-echo "[INFO] Submitted batch job ${JOB_ID}, waiting for completion..."
-ssh meluxina "while squeue -j ${JOB_ID} -h | grep -q .; do echo \"[INFO] ${JOB_ID} still running...\"; sleep 15; done; sacct -j ${JOB_ID} --format=JobID,State --noheader | head -n1"
+# Loop finché il job è in coda o in esecuzione
+while ssh meluxina "squeue -j ${JOB_ID} -h | grep -q ."; do
+  echo "[INFO] Job ${JOB_ID} still running..."
+  sleep 10
+done
+
+echo "[INFO] Job ${JOB_ID} completed."
+ssh meluxina "sacct -j ${JOB_ID} --format=JobID,State,Elapsed --noheader | head -n1"
+
 
 mkdir -p "${LOCAL_RESULTS_DIR}"
 
