@@ -1,0 +1,6 @@
+# For development and testing purposes
+-r requirements.txt
+
+# --- Development ---
+pytest>=8.0.0
+black>=24.0.0 

@@ -6,7 +6,6 @@ import time
 import requests
 
 from Core.abstracts import Monitor
-from Core.analytics.grafana_exporter import GrafanaExporter
 
 LABEL_PATTERN = re.compile(r'([a-zA-Z_][a-zA-Z0-9_]*)="((?:\\.|[^"\\])*)"')
 
@@ -23,28 +22,56 @@ class PrometheusMonitor(Monitor):
                  collect_interval=10,
                  save_path="metrics_snapshot.json",
                  metrics_path="/metrics",
-                 readable_save_path=None,
-                 grafana_export_path=None):
+                 readable_save_path=None):
         self.scrape_targets = scrape_targets              # list of host:port
         self.scrape_interval = scrape_interval           # how often to scrape
         self.collect_interval = collect_interval         # how often to save buffer
         self.save_path = save_path
         self.metrics_path = metrics_path or "/metrics"
         self.readable_save_path = readable_save_path or self._derive_readable_path(save_path)
-        self.grafana_export_path = grafana_export_path or self._derive_grafana_path(save_path)
         self._active = False
         self._buffer = []
         self._last_saved = time.time()
+        
+        # Threading for background scraping
+        self._stop_event = None
+        self._thread = None
 
     def start(self):
+        if self._active:
+            return
+
         self._active = True
-        print(f"[PrometheusMonitor] Started pull-mode monitoring: {self.scrape_targets}")
+        self._stop_event = __import__('threading').Event()
+        
+        def _scrape_loop():
+            while not self._stop_event.is_set():
+                start_time = time.time()
+                try:
+                    self.collect()
+                except Exception as e:
+                    print(f"[PrometheusMonitor] Scrape error: {e}")
+                
+                # Sleep for the remainder of the interval
+                elapsed = time.time() - start_time
+                sleep_time = max(0, self.scrape_interval - elapsed)
+                self._stop_event.wait(sleep_time)
+
+        self._thread = __import__('threading').Thread(target=_scrape_loop, daemon=True)
+        self._thread.start()
+        print(f"[PrometheusMonitor] Started background scraping thread (interval={self.scrape_interval}s) targets={self.scrape_targets}")
 
     def collect(self):
         if not self._active:
             return {}
 
         snapshot = {}
+        # ... (rest of collect logic is unchanged, just ensuring it runs) ...
+        # logic is:
+        # 1. Scrape URLs -> snapshot
+        # 2. Append to _buffer
+        # 3. If time > collect_interval -> _save()
+        
         for target in self.scrape_targets:
             if target.startswith("http://") or target.startswith("https://"):
                 url = target
@@ -60,6 +87,8 @@ class PrometheusMonitor(Monitor):
                 snapshot[target] = f"ERROR: {e}"
 
         entry = {"timestamp": time.time(), "data": snapshot}
+        # Thread-safety note: lists are thread-safe for append in CPython, but strictly speaking we might want a lock. 
+        # For this simple benchmark, implicit atomicity of append is likely enough.
         self._buffer.append(entry)
 
         # periodic save
@@ -67,7 +96,7 @@ class PrometheusMonitor(Monitor):
             self._save()
             self._last_saved = time.time()
 
-        print(f"[PrometheusMonitor] Polled {len(self.scrape_targets)} targets.")
+        # print(f"[PrometheusMonitor] Polled {len(self.scrape_targets)} targets.") # Reduce verbosity
         return snapshot
 
     def _save(self):
@@ -78,20 +107,20 @@ class PrometheusMonitor(Monitor):
             if self.readable_save_path:
                 with open(self.readable_save_path, "w") as f:
                     json.dump(readable_snapshot, f, indent=2)
-            if self.grafana_export_path:
-                exporter = GrafanaExporter()
-                exporter.export(readable_snapshot, self.grafana_export_path)
         except Exception as e:
             print(f"[PrometheusMonitor] Save error: {e}")
 
     def stop(self):
         self._active = False
+        if self._stop_event:
+            self._stop_event.set()
+        if self._thread:
+            self._thread.join(timeout=5)
+            
         self._save()
         msg = f"[PrometheusMonitor] Saved metrics to {self.save_path}"
         if self.readable_save_path:
             msg += f" | parsed: {self.readable_save_path}"
-        if self.grafana_export_path:
-            msg += f" | grafana: {self.grafana_export_path}"
         print(msg)
 
     # ------------------------------------------------------------------
@@ -103,13 +132,6 @@ class PrometheusMonitor(Monitor):
         if not ext:
             ext = ".json"
         return f"{base}_parsed{ext}"
-
-    @staticmethod
-    def _derive_grafana_path(save_path):
-        base, ext = os.path.splitext(save_path)
-        if not ext:
-            ext = ".json"
-        return f"{base}_grafana{ext}"
 
     def _build_readable_snapshot(self):
         readable_entries = []

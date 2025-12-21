@@ -59,10 +59,11 @@ clients:
       type: "s3-upload"
       endpoint: "http://127.0.0.1:9000"
       bucket: "ai-factory"
-      objects: 100
-      min_kb: 64
-      max_kb: 2048
-      preprocess_ms: 10
+      objects: 0           # Unlimited, use duration
+      duration_sec: 300    # Run for 5 minutes
+      min_kb: 1024         # 1 MB
+      max_kb: 51200        # 50 MB (Simulate checkpoints/large assets)
+      preprocess_ms: 50    # Slight delay to simulate compute
 
     monitor: "prometheus-node"
     logger: "file-compact"
@@ -81,7 +82,6 @@ monitors:
     scrape_interval: 5
     collect_interval: 10
     save_as: "prom_snapshot.json"
-    grafana_save_as: "prom_snapshot_grafana.json"
     metrics_path: "/minio/v2/metrics/cluster"
 
 # ------------------------------------------------------------------
@@ -100,7 +100,7 @@ loggers:
 # ------------------------------------------------------------------
 execution:
   warmup: 30
-  duration: 60
+  duration: 360
   replicas: 1
   poll_interval: 5
   post_actions:
@@ -123,3 +123,5 @@ notifications:
 cleanup:
   remove_containers: true
   preserve_artifacts: false
+  paths:
+    - "${global.workspace}/minio-data"

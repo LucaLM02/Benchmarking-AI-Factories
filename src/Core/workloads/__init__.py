@@ -1,9 +1,10 @@
 from typing import Callable, Dict
 
-from Core.workloads import s3_upload
+from Core.workloads import s3_upload, vllm_inference
 
 WORKLOAD_REGISTRY: Dict[str, Callable] = {
     "s3-upload": s3_upload.run,
+    "vllm-inference": vllm_inference.run,
 }
 
 

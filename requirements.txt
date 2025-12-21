@@ -1,32 +1,12 @@
-# --- Core ---
-PyYAML>=6.0         # per caricare/parlare con i file .yaml
-requests>=2.31.0    # utile per chiamate HTTP (webhook notifiche)
-tqdm>=4.66.0        # barre di progresso opzionali
-psutil>=5.9.0       # monitoraggio risorse CPU/memoria locali
-boto3>=1.28.0        # per interagire con AWS S3 (archiviazione risultati)
+# Requisiti per l'ambiente locale (automazione e visualizzazione)
 
-# --- Logging & Monitoring ---
-prometheus_client>=0.17.0  # per integrazione base con Prometheus exporter
+# Include i requisiti di base necessari anche per l'esecuzione remota
+-r requirements-core.txt
 
-# --- Report generation ---
-pandas>=2.2.0        # per elaborare metriche
-matplotlib>=3.9.0    # per grafici/report PDF
-reportlab>=4.0.9     # per generare report PDF automatici
-
-# Scientific stack (tested compatible)
-numpy>=1.26.4,<2.0
-scipy>=1.11.0
-pandas>=2.2.0
-matplotlib>=3.8.0
-
-# --- Optional HPC interaction ---
-# slurm CLI commands (sbatch, squeue, scancel) are already available in MeluXina,
-# so NO Python library needed, subprocess will handle them
-
-# --- API / orchestration ---
+# --- API / Orchestration (per il server locale) ---
 fastapi>=0.110.0
 uvicorn>=0.29.0
 
-# --- Development ---
-pytest>=8.0.0        # per test
-black>=24.0.0        # per formattazione codice
+# --- Report generation (per la visualizzazione locale) ---
+matplotlib>=3.8.0
+reportlab>=4.0.9

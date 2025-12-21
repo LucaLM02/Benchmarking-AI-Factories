@@ -28,15 +28,16 @@ def run(config: Dict[str, Any], logger=None, stop_event: Optional[Event] = None)
     min_kb = config.get("min_kb", 64)
     max_kb = config.get("max_kb", 2048)
     objects = int(config.get("objects", 200))
+    duration_sec = int(config.get("duration_sec", 0))  # 0 means limit by objects
     preprocess_ms = int(config.get("preprocess_ms", 5))
-    timeout = float(config.get("timeout", 3))
+    timeout = float(config.get("timeout", 30))  # Increased default timeout for larger files
     label = config.get("label", "s3-realistic")
 
     session = requests.Session()
     base = endpoint.rstrip("/") + "/"
     bucket_url = urljoin(base, f"{bucket}/")
 
-    _log(logger, f"[{label}] START — endpoint={endpoint}, bucket={bucket}")
+    _log(logger, f"[{label}] START — endpoint={endpoint}, bucket={bucket}, duration={duration_sec}s")
 
     # ------------------------------------------------------------
     # 1. Create bucket (idempotent)
@@ -55,11 +56,25 @@ def run(config: Dict[str, Any], logger=None, stop_event: Optional[Event] = None)
     # ------------------------------------------------------------
     # 2. Loop simulating ingestion + inference workflow
     # ------------------------------------------------------------
-    for i in range(objects):
+    start_time = time.time()
+    i = 0
+    
+    while True:
+        # Check termination conditions
+        elapsed = time.time() - start_time
+        if duration_sec > 0:
+            if elapsed >= duration_sec:
+                _log(logger, f"[{label}] Duration {duration_sec}s reached.", "INFO")
+                break
+        elif i >= objects:
+             _log(logger, f"[{label}] Object limit {objects} reached.", "INFO")
+             break
 
         if stop_event and stop_event.is_set():
-            _log(logger, f"[{label}] Stop at iteration {i}", "WARN")
+            _log(logger, f"[{label}] Stop signal received at iteration {i}", "WARN")
             break
+            
+        i += 1
 
         # Simulated preprocessing (AI pipeline)
         time.sleep(preprocess_ms / 1000)

@@ -1,3 +1,4 @@
+import shutil
 import copy
 import os
 import time
@@ -164,11 +165,6 @@ class BenchmarkManager:
                     readable_path = readable_save if os.path.isabs(readable_save) else os.path.join(save_dir, readable_save)
                 else:
                     readable_path = None
-                grafana_save = m.get("grafana_save_as")
-                if grafana_save:
-                    grafana_path = grafana_save if os.path.isabs(grafana_save) else os.path.join(save_dir, grafana_save)
-                else:
-                    grafana_path = None
                 monitors[m["id"]] = PrometheusMonitor(
                     scrape_targets=scrape_targets,
                     scrape_interval=m.get("scrape_interval", 5),
@@ -178,8 +174,7 @@ class BenchmarkManager:
                         save_dir,
                         m.get("save_as", "metrics.json")
                     ),
-                    readable_save_path=readable_path,
-                    grafana_export_path=grafana_path
+                    readable_save_path=readable_path
                 )
             else:
                 print(f"[WARN] Unknown monitor type: {m['type']}")
@@ -255,6 +250,26 @@ class BenchmarkManager:
 
             else:
                 print(f"[WARN] Unknown post action: {act}")
+
+    # ------------------------------------------------------------
+    # Cleanup
+    # ------------------------------------------------------------
+    def cleanup(self):
+        print("[INFO] Performing cleanup...")
+        cfg = self.recipe.get("cleanup", {})
+        
+        remove_paths = cfg.get("paths", [])
+        for p in remove_paths:
+            full_path = expand_path(p, self.recipe)
+            if os.path.exists(full_path):
+                try:
+                    if os.path.isdir(full_path):
+                        shutil.rmtree(full_path)
+                    else:
+                        os.remove(full_path)
+                    print(f"[INFO] Removed cleanup path: {full_path}")
+                except Exception as e:
+                    print(f"[WARN] Failed to remove {full_path}: {e}")
 
     # ------------------------------------------------------------
     # Run Benchmark (MAIN)
@@ -380,5 +395,8 @@ class BenchmarkManager:
 
         # Post actions
         self.execute_post_actions(self.recipe["execution"].get("post_actions", []))
+
+        # Cleanup
+        self.cleanup()
 
         print("[INFO] === Benchmark Completed ===")
