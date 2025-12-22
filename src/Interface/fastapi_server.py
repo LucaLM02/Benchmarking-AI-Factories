@@ -155,6 +155,7 @@ def extract_time_series(parsed_data, metric_name: str):
     if metric_name.endswith("_total") or \
        metric_name.endswith("_count") or \
        metric_name.endswith("_sum") or \
+       metric_name.endswith("_distribution") or \
        (metric_name.endswith("_bytes") and "capacity" not in metric_name and "memory" not in metric_name):
         is_counter = True
 

@@ -269,7 +269,8 @@ EOF
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "auto" }
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "auto" },
+          "unit": "bytes"
         },
         "overrides": []
       },
@@ -320,21 +321,14 @@ EOF
     },
     {
       "datasource": "BenchmarkData",
-      "description": "Select metrics from the dropdown above to visualize them here.",
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "auto" }
-        },
-        "overrides": []
-      },
+      "description": "Select metrics from the dropdown above to visualize them here. (Optimized for Histograms/Heatmaps)",
       "gridPos": { "h": 12, "w": 24, "x": 0, "y": 11 },
       "id": 21,
       "targets": [
         { "refId": "A", "target": "\$Metric", "type": "timeserie" }
       ],
-      "title": "Custom Metrics",
-      "type": "timeseries"
+      "title": "Custom Metrics (Heatmap)",
+      "type": "heatmap"
     }
   ],
   "schemaVersion": 36,
@@ -464,14 +458,32 @@ EOF
 
     if [ $? -eq 0 ]; then
         STACK_STARTED=1
-        log_info "--------------------------------------------------------"
-        log_info "Stack running!"
-        log_info " -> Grafana Dashboard: http://localhost:${GRAFANA_PORT}"
-        log_info "--------------------------------------------------------"
         
-        # Follow logs for a bit to ensure startup
-        log_info "Waiting 5 seconds for services to stabilize..."
-        sleep 5
+        log_info "Waiting for Grafana to initialize (max 90s)..."
+        local retries=0
+        local max_retries=18
+        local connected=0
+        
+        while [ $retries -lt $max_retries ]; do
+            if curl -s "http://localhost:${GRAFANA_PORT}/api/health" | grep -q "ok"; then
+                connected=1
+                break
+            fi
+            echo -n "."
+            sleep 5
+            retries=$((retries+1))
+        done
+        echo ""
+
+        if [ $connected -eq 1 ]; then
+            log_info "--------------------------------------------------------"
+            log_info "Stack running and ready!"
+            log_info " -> Grafana Dashboard: http://localhost:${GRAFANA_PORT}"
+            log_info "--------------------------------------------------------"
+        else
+            log_warn "Grafana did not respond within timeout, but container is running."
+            log_info " -> Grafana Dashboard: http://localhost:${GRAFANA_PORT} (might be starting)"
+        fi
         
         if [[ "${KEEP_SERVICES:-0}" == "1" ]]; then
             log_info "Services are running in Docker. Press Ctrl-C to stop and remove containers."
