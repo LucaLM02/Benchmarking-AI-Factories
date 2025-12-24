@@ -43,6 +43,27 @@ log_warn() {
     echo "[WARN] $(date '+%Y-%m-%d %H:%M:%S') - $*"
 }
 
+force_clean_path() {
+    local target_path=$1
+    if [ -e "$target_path" ]; then
+        # Try normal remove first
+        rm -rf "$target_path" 2>/dev/null || true
+        
+        # If still exists, use docker to remove (as it might be root-owned)
+        if [ -e "$target_path" ] && command -v docker >/dev/null 2>&1; then
+             log_info "Removing root-owned path via Docker: $target_path"
+             # Use alpine to delete the file/folder mapping volume
+             # We mount the PARENT directory to /work and delete the BASENAME
+             local parent_dir
+             parent_dir=$(dirname "$target_path")
+             local base_name
+             base_name=$(basename "$target_path")
+             
+             docker run --rm -v "${parent_dir}:/work" -w /work alpine rm -rf "${base_name}" || true
+        fi
+    fi
+}
+
 check_local_requirements() {
     if [[ ! -f "${PROJECT_ROOT}/run_benchmark.sh" ]]; then
         log_error "run_benchmark.sh not found in ${PROJECT_ROOT}. Ensure you run this from the repository root."
@@ -209,7 +230,18 @@ start_full_stack_docker() {
     TMP_JSON_DIR="${TMP_PROVISIONING_DIR}/json"
     TMP_COMPOSE_FILE="${PROJECT_ROOT}/.tmp_docker_compose_full.yml"
     
-    rm -rf "${TMP_PROVISIONING_DIR}" "${TMP_COMPOSE_FILE}"
+    # Force kill any existing containers that might lock files
+    if command -v docker >/dev/null 2>&1; then
+        docker rm -f benchmark-fastapi-wsl grafana-local >/dev/null 2>&1 || true
+    fi
+
+    # Clean contents but preserve directory if possible to help Docker Desktop binds
+    mkdir -p "${TMP_PROVISIONING_DIR}"
+    rm -rf "${TMP_PROVISIONING_DIR:?}/"* 2>/dev/null || force_clean_path "${TMP_PROVISIONING_DIR}"
+    
+    force_clean_path "${TMP_COMPOSE_FILE}"
+    
+    mkdir -p "${TMP_DATASOURCES_DIR}" "${TMP_DASHBOARDS_DIR}" "${TMP_JSON_DIR}"
     mkdir -p "${TMP_DATASOURCES_DIR}" "${TMP_DASHBOARDS_DIR}" "${TMP_JSON_DIR}"
 
     TMP_DATASOURCE_FILE="${TMP_DATASOURCES_DIR}/datasources.yaml"
@@ -443,7 +475,7 @@ EOF
 
     
     log_info "Waiting for file synchronization (WSL -> Docker Desktop)..."
-    sleep 3
+    sleep 8  # Increased from 3 to 8 for reliability
 
     # Choose compose command
     COMPOSE_CMD=""
@@ -511,12 +543,18 @@ cleanup() {
     if [[ ${STACK_STARTED} -eq 1 && -n "${TMP_COMPOSE_FILE}" && -f "${TMP_COMPOSE_FILE}" ]]; then
         log_info "Stopping Docker Compose stack..."
         if command -v docker-compose >/dev/null 2>&1; then
-            docker-compose -f "${TMP_COMPOSE_FILE}" down >/dev/null 2>&1 || true
+            docker-compose -f "${TMP_COMPOSE_FILE}" down --remove-orphans >/dev/null 2>&1 || true
         else
-            docker compose -f "${TMP_COMPOSE_FILE}" down >/dev/null 2>&1 || true
+            docker compose -f "${TMP_COMPOSE_FILE}" down --remove-orphans >/dev/null 2>&1 || true
         fi
-        rm -rf "${TMP_COMPOSE_FILE}" || true
-        rm -rf "${TMP_PROVISIONING_DIR}" || true
+        
+        # Explicitly kill nice and hard
+        if command -v docker >/dev/null 2>&1; then
+             docker rm -f benchmark-fastapi-wsl grafana-local >/dev/null 2>&1 || true
+        fi
+
+        force_clean_path "${TMP_COMPOSE_FILE}"
+        force_clean_path "${TMP_PROVISIONING_DIR}"
     fi
     
     log_info "Cleanup finished."
