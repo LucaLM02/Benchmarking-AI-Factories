@@ -1,145 +1,82 @@
 @startuml
-title AI Factory Benchmark – Class & Package Design
+title AI Factory Benchmark - System Architecture
 
-' -------------------------------------------------------
-' Packages reflect your repo structure
-' -------------------------------------------------------
-package "Interface" {
-  class CLI {
-    + main(args)
-  }
+skinparam packageStyle rectangle
+skinparam componentStyle rectangle
 
-  class BenchmarkManager {
-    - recipe: dict
-    - recipe_path: str
-    - _workspace_overridden: bool
-    + load_recipe(path: str): void
-    + override_workspace(path: str): void
-    + validate_recipe(): void
-    + show_summary(): void
-    + run_benchmark(): void
-    + start_monitors(): void
-    + start_loggers(): void
-    + launch_service(service_cfg: dict): void
-    + launch_client(client_cfg: dict): void
-    + execute_post_actions(actions: list): void
+package "Local Machine" {
+  [automation_script.sh] as AutoScript
+  
+  package "Docker Stack" {
+    [FastAPI Server] as FastAPI
+    [Grafana] as Grafana
   }
+  
+  database "Local Results" as LocalResults
 }
 
-package "Core" {
-  package "Abstracts" {
-    abstract class Executor {
-      + run(command: str, **kwargs) : str
-      + stop() : void
-      + status() : str
-    }
-
-    abstract class Monitor {
-      + start() : void
-      + stop() : void
-      + collect_metrics() : dict
-    }
-
-    abstract class Logger {
-      + log(message: str, level: str="INFO") : void
-      + export() : str
-    }
+package "MeluXina HPC" {
+  [run_benchmark.sh] as RunBench
+  [BenchmarkManager] as Manager
+  
+  package "Services" {
+    [vLLM Server] as VLLM
+    [MinIO Server] as MinIO
   }
-
-  package "Executors" {
-    class SlurmExecutor {
-      - job_name: str
-      - nodes: int
-      - ntasks: int
-      - job_id: str
-      + run(command: str) : str
-      + stop() : void
-      + status() : str
-    }
-
-    class ApptainerExecutor {
-      - image: str
-      - nv: bool
-      - _proc
-      + run(command: str, **kwargs) : str
-      + stop() : void
-      + status() : str
-    }
+  
+  package "Workloads" {
+    [vllm_inference.py] as VLLMClient
+    [s3_upload.py] as S3Client
   }
-
-  package "Monitors" {
-    class PrometheusMonitor {
-      - scrape_targets: list
-      - scrape_interval: int
-      - collect_interval: int
-      - save_path: str
-      + start() : void
-      + stop() : void
-      + collect_metrics() : dict
-    }
-  }
-
-  package "Loggers" {
-    class FileLogger {
-      - log_dir: str
-      - file_name: str
-      - fmt: str
-      + log(message: str, level: str="INFO") : void
-      + export() : str
-    }
-  }
-
-  class Service {
-    - id: str
-    - role: str
-    - executor: Executor
-    - monitors: List<Monitor>
-    - loggers: List<Logger>
-    + start(command: str) : void
-    + stop() : void
-    + status() : str
-    + collect_artifacts() : void
-  }
+  
+  [PrometheusMonitor] as PromMon
+  database "Remote Workspace" as RemoteWS
 }
 
-' -------------------------------------------------------
-' Inheritance
-' -------------------------------------------------------
-Executor <|-- SlurmExecutor
-Executor <|-- ApptainerExecutor
+package "Recipes" {
+  file "vLLM_InferenceRecipe.yaml" as VLLMRecipe
+  file "S3_UploadRecipe.yaml" as S3Recipe
+}
 
-Monitor  <|-- PrometheusMonitor
-Logger   <|-- FileLogger
+AutoScript --> RunBench : SSH + sbatch
+AutoScript --> LocalResults : rsync fetch
+AutoScript --> Grafana : starts
 
-' -------------------------------------------------------
-' Composition & associations
-' -------------------------------------------------------
-BenchmarkManager "1" *-- "many" Service : manages
-Service "1" *-- "1" Executor : uses
-Service "1" *-- "0..*" Monitor : observes
-Service "1" *-- "0..*" Logger  : records
+RunBench --> Manager : executes
+Manager --> VLLMRecipe : loads
+Manager --> S3Recipe : loads
 
-CLI --> BenchmarkManager : invokes
+Manager --> VLLM : starts
+Manager --> MinIO : starts
+Manager --> VLLMClient : launches
+Manager --> S3Client : launches
+Manager --> PromMon : starts
 
-' -------------------------------------------------------
-' Notes to connect with YAML recipe
-' -------------------------------------------------------
-note right of BenchmarkManager
-Reads a YAML "recipe" with:
-- meta, global
-- services[] (server-side)
-- clients[]  (client workloads)
-- monitors[], loggers[]
-- execution (warmup, duration, replicas, post_actions)
-- reporting, notifications
+VLLMClient --> VLLM : HTTP requests
+S3Client --> MinIO : S3 API calls
+PromMon --> VLLM : scrapes /metrics
+PromMon --> MinIO : scrapes /metrics
+PromMon --> RemoteWS : saves JSON
+
+FastAPI --> LocalResults : reads metrics
+Grafana --> FastAPI : queries data
+
+note right of AutoScript
+  Entry point for users.
+  Syncs code, submits job,
+  fetches results, starts viz.
 end note
 
-note bottom of Service
-Each Service corresponds to:
-- a "server" or a "client" entry
-- resolved executor (e.g., Slurm)
-- zero/many monitors (e.g., Prometheus)
-- zero/many loggers  (e.g., FileLogger)
+note bottom of Manager
+  Parses YAML recipes,
+  manages service lifecycle,
+  handles healthchecks.
+end note
+
+note right of FastAPI
+  Grafana datasource API.
+  Auto-detects service type.
+  Calculates rate() for counters.
 end note
 
 @enduml

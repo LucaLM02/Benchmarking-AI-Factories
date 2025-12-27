@@ -106,10 +106,21 @@ def metrics(file: str = Query(..., description="Relative path to parsed JSON fil
     return JSONResponse(content=data)
 
 
-def extract_time_series(parsed_data, metric_name: str):
-    # Return dict: target_with_labels -> {"ts": [], "vals": []}
-    # 1. Collect all points
-    # structure: [ (ts, val, labels_str), ... ]
+def extract_time_series(parsed_data, metric_name: str, apply_rate: bool = True):
+    """
+    Extract time series data for a metric from parsed Prometheus data.
+    
+    Automatically applies rate() calculation for counter metrics and
+    can compute histogram_quantile for bucket metrics.
+    
+    Args:
+        parsed_data: List of parsed Prometheus snapshots
+        metric_name: Name of the metric to extract
+        apply_rate: If True, apply rate calculation for counters (default True)
+    
+    Returns:
+        Dict mapping series_key -> {"ts": [...], "vals": [...]}
+    """
     raw_points = []
     
     for entry in parsed_data:
@@ -120,9 +131,8 @@ def extract_time_series(parsed_data, metric_name: str):
                 if m.get("name") == metric_name:
                     val = m.get("value")
                     labels = m.get("labels") or {}
-                    # Create a unique key for the series based on labels
-                    # target is usually just host:port, we want distinctions if labels differ
-                    # Format: host {label="val", ...}
+                    
+                    # Create unique series key from labels
                     label_parts = [f'{k}="{v}"' for k, v in sorted(labels.items())]
                     if label_parts:
                         series_key = f"{target}{{{','.join(label_parts)}}}"
@@ -133,41 +143,31 @@ def extract_time_series(parsed_data, metric_name: str):
                         raw_points.append({
                             "key": series_key,
                             "ts": ts,
-                            "val": val
+                            "val": val,
+                            "labels": labels
                         })
 
-    # 2. Group by series key
+    # Group by series key
     grouped = {}
     for p in raw_points:
         k = p["key"]
         if k not in grouped:
-            grouped[k] = {"ts": [], "vals": []}
-        # Assuming parsed_data is already sorted by time, but safety first not strictly need if processed sequentially
+            grouped[k] = {"ts": [], "vals": [], "labels": p.get("labels", {})}
         grouped[k]["ts"].append(p["ts"])
         grouped[k]["vals"].append(p["val"])
-        
-    # 3. Apply Rate Calculation Heuristic
-    # If metric name implies a counter, we usually want Rate (per second).
-    # Common suffixes: _total, _count, _sum, _bytes
-    # EXCEPTION: _bytes might be gauge (disk usage), but here minio_node_io_* are counters.
-    # minio_cluster_capacity_* is GAUGE.
-    is_counter = False
-    if metric_name.endswith("_total") or \
-       metric_name.endswith("_count") or \
-       metric_name.endswith("_sum") or \
-       metric_name.endswith("_distribution") or \
-       (metric_name.endswith("_bytes") and "capacity" not in metric_name and "memory" not in metric_name):
-        is_counter = True
-
-    if is_counter:
+    
+    # Determine metric type based on naming conventions
+    is_counter = _is_counter_metric(metric_name)
+    is_histogram_bucket = metric_name.endswith("_bucket")
+    
+    if apply_rate and is_counter:
+        # Apply rate() calculation: derivative per second
         for k, d in grouped.items():
             timestamps = d["ts"]
             values = d["vals"]
             rate_ts = []
             rate_vals = []
             
-            # Simple derivative: (v2 - v1) / (t2 - t1)
-            # We assign the rate to t2
             for i in range(1, len(timestamps)):
                 t1 = timestamps[i-1]
                 t2 = timestamps[i]
@@ -177,7 +177,7 @@ def extract_time_series(parsed_data, metric_name: str):
                 dt = t2 - t1
                 if dt > 0:
                     rate = (v2 - v1) / dt
-                    # Filter negative rates (restarts)
+                    # Filter negative rates (counter resets)
                     if rate >= 0:
                         rate_ts.append(t2)
                         rate_vals.append(rate)
@@ -186,6 +186,20 @@ def extract_time_series(parsed_data, metric_name: str):
             grouped[k]["vals"] = rate_vals
 
     return grouped
+
+
+def _is_counter_metric(metric_name: str) -> bool:
+    """Detect if metric is a counter based on naming conventions."""
+    counter_suffixes = ["_total", "_count", "_sum", "_bytes_total", "_seconds_total"]
+    for suffix in counter_suffixes:
+        if metric_name.endswith(suffix):
+            return True
+    
+    # Histogram buckets are also counters
+    if metric_name.endswith("_bucket"):
+        return True
+    
+    return False
 
 
 @app.get("/plot")
@@ -266,13 +280,81 @@ def load_first_parsed_file():
 def heartbeat():
     return {"status": "ok"}
 
+# Service-specific recommended metrics
+# NOTE: Counter metrics (_total, _count, _sum, _bucket) automatically get rate() applied
+SERVICE_DEFAULTS = {
+    "s3": {
+        # Rate-calculated counters for throughput
+        "metric1": "minio_s3_requests_total",       # RPS: rate(minio_s3_requests_total)
+        "metric2": "minio_s3_traffic_sent_bytes",   # Bandwidth: rate(minio_s3_traffic_sent_bytes)
+        "metric3": "minio_s3_requests_ttfb_seconds_distribution"  # TTFB latency heatmap
+    },
+    "vllm": {
+        # vLLM uses http_request_duration metrics from uvicorn
+        "metric1": "http_request_duration_highr_seconds_count",  # RPS (rate applied automatically)
+        "metric2": "vllm:num_requests_running",                   # Concurrent requests (gauge)
+        "metric3": "http_request_duration_highr_seconds_bucket"   # Latency histogram for heatmap
+    },
+    "unknown": {
+        "metric1": "",
+        "metric2": "",
+        "metric3": ""
+    }
+}
+
+def detect_service_type(metrics: List[str]) -> str:
+    """Detect service type from available metrics."""
+    for m in metrics:
+        if m.startswith("minio_"):
+            return "s3"
+        if m.startswith("vllm:") or m.startswith("vllm_"):
+            return "vllm"
+    return "unknown"
+
+@app.get("/defaults")
+def get_defaults():
+    """Return recommended default metrics based on detected service type."""
+    data = load_first_parsed_file()
+    metrics = get_all_metrics(data)
+    service_type = detect_service_type(metrics)
+    
+    defaults = SERVICE_DEFAULTS.get(service_type, SERVICE_DEFAULTS["unknown"])
+    
+    # Validate that recommended metrics actually exist, fallback to first available
+    validated = {}
+    for key, metric in defaults.items():
+        if metric in metrics:
+            validated[key] = metric
+        elif metrics:
+            validated[key] = metrics[0]
+        else:
+            validated[key] = ""
+    
+    return {
+        "service_type": service_type,
+        "available_metrics": metrics,
+        "recommended": validated
+    }
+
 @app.post("/search")
 def grafana_search(body: dict = None):
     print(f"DEBUG: /search called. Body: {body}")
     data = load_first_parsed_file()
     metrics = get_all_metrics(data)
-    print(f"DEBUG: Found {len(metrics)} metrics. Sample: {metrics[:5]}")
-    return metrics
+    
+    # Put recommended metrics first for better UX
+    service_type = detect_service_type(metrics)
+    recommended = list(SERVICE_DEFAULTS.get(service_type, {}).values())
+    
+    # Sort: recommended first, then alphabetically
+    def sort_key(m):
+        if m in recommended:
+            return (0, recommended.index(m))
+        return (1, m)
+    
+    sorted_metrics = sorted(metrics, key=sort_key)
+    print(f"DEBUG: Found {len(metrics)} metrics. Service: {service_type}")
+    return sorted_metrics
 
 @app.post("/query")
 def grafana_query(body: GrafanaQueryRequest):

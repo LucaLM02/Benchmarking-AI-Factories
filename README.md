@@ -1,99 +1,147 @@
 # Benchmarking-AI-Factories
 
-**EUMaster4HPC Student Challenge 2025-2026**  
-**Benchmarking AI Factories on MeluXina Supercomputer**
+A modular benchmarking framework for evaluating AI Factory components on HPC systems. Designed for the EUMaster4HPC Student Challenge 2025-2026 on the MeluXina supercomputer.
 
-This repository contains design documents, source code, logs, benchmarking framework, monitoring dashboards, and final reports related to the challenge **"Benchmarking AI Factories on MeluXina"**.  
-The goal is to develop a **unified benchmarking framework** capable of evaluating the performance and scalability of different **AI Factory components** (storage, inference, vector databases, orchestration, and monitoring) using the **MeluXina supercomputer**.
+## Overview
 
----
+This framework provides automated benchmarking of:
+- Inference servers (vLLM)
+- Object storage (MinIO/S3)
 
-## 🎯 Objectives
+Results are collected via Prometheus metrics and visualized in Grafana dashboards.
 
-- **Design and implement** a modular benchmarking framework for AI Factory workloads.
-- **Evaluate and compare** storage, inference, and retrieval systems under realistic HPC-scale conditions.
-- **Develop reusable benchmarking tools** with modular architecture (Python + Slurm + Apptainer).
-- **Produce performance insights**, dashboards, and recommendations for future AI Factory designs.
+## Architecture
 
----
+The following diagram shows the system architecture:
 
-## 🧩 Components Tested
-The benchmark targets the following AI Factory building blocks:
-- **Storage systems** (File systems, Object storage such as MinIO/S3)
-- **Relational databases** (PostgreSQL, etc.)
-- **Inference servers** (Triton, vLLM)
-- **Vector databases** (Chroma, Faiss, Milvus, Weaviate)
-- **Monitoring and orchestration** (Prometheus, Grafana, Slurm)
+![System Architecture](docs/design.png)
 
-Each component is tested independently and as part of an **end-to-end AI pipeline**, with metrics such as **throughput, latency, scalability, and resource utilization** collected automatically.
+## Requirements
 
----
+### Local Machine (Windows WSL / Linux)
 
-## ⚙️ Methodology
+- Docker Desktop (with WSL2 integration if on Windows)
+- SSH access to MeluXina configured in ~/.ssh/config
+- Git
+- rsync
 
-1. Define benchmark **recipes** in YAML format describing:
-   - Services and clients (CPU/GPU, nodes, execution mode)
-   - Monitors and loggers
-   - Execution parameters (warmup, duration, replicas)
-   - Reporting and notification settings
+### MeluXina Cluster
 
-2. Run benchmarks on **MeluXina HPC** using **Apptainer containers** orchestrated via **Slurm**.
+- Apptainer module (loaded automatically by scripts)
+- Python 3.9+
+- Access to GPU partition for vLLM benchmarks
 
-3. Collect metrics and logs into unified dashboards (Prometheus + Grafana) and generate CSV/PDF reports.
-
-4. Analyze results to provide insights on performance scaling and system bottlenecks.
-
-## 🧩 UML Design
-
-The following diagram shows the class design of the Benchmarking-AI-Factories framework:
-
-![Benchmark Design Diagram](docs/design.png)
-
-## 🚀 Quick Tutorial – How to Run the Benchmark on MeluXina
-
-Follow these steps to reproduce or execute a benchmark.
-
-### 1️⃣ Access MeluXina
-Connect to MeluXina using your assigned credentials:
-```bash
-ssh <your-user-ID>@login.lxp.lu -p 8822 -i ~/.ssh/id_ed25519_mlux
+## Project Structure
 
 ```
-
-### 2️⃣ Allocate a compute node
-Request an interactive compute node
-
-### 3️⃣ Load required module
-```bash
-module add Apptainer
-
+Benchmarking-AI-Factories/
+├── Recipes/                    # YAML benchmark configurations
+│   ├── vLLM_InferenceRecipe.yaml
+│   └── S3_UploadRecipe.yaml
+├── scripts/
+│   ├── automation_script.sh    # Main entry point (run from local)
+│   ├── build_images_local.sh   # Build Apptainer images locally
+│   └── pull_images_meluxina.sh # Build images on cluster
+├── src/
+│   ├── Interface/
+│   │   ├── cli.py              # Command-line interface
+│   │   ├── benchmark_manager.py
+│   │   └── fastapi_server.py   # Grafana datasource API
+│   └── Core/
+│       ├── executors/          # Slurm, Process, Apptainer
+│       ├── monitors/           # Prometheus metrics collection
+│       ├── loggers/            # File logging
+│       └── workloads/          # vllm_inference.py, s3_upload.py
+├── run_benchmark.sh            # Slurm job script
+├── images/                     # Pre-built Apptainer SIF images
+└── docs/
+    └── design.puml             # Architecture diagram
 ```
 
-### 4️⃣ Clone this repository
-```bash
-git clone https://github.com/LucaLM02/Benchmarking-AI-Factories.git
-cd Benchmarking-AI-Factories
+## Usage
 
-```
+### Option 1: Automated Workflow (Recommended)
 
-### 5️⃣ Configure project information
-Edit the run_benchmark.sh file to set your MeluXina project ID:
-```bash
-PROJECT_ID="pxxxxxx"
-
-```
-
-### 6️⃣ Run the benchmark
-```bash
-sbatch run_benchmark.sh
-
-```
-
-### 7️⃣ Check the job status
+Run everything from your local machine:
 
 ```bash
-squeue -u $USER
-
+cd Benchmarking-AI-Factories/scripts
+bash automation_script.sh
 ```
 
+This script will:
+1. Sync the project to MeluXina
+2. Submit the Slurm job
+3. Wait for completion
+4. Fetch results to local machine
+5. Start Grafana dashboard
 
+### Option 2: Manual Execution on MeluXina
+
+1. SSH into MeluXina:
+   ```bash
+   ssh meluxina
+   ```
+
+2. Navigate to project directory:
+   ```bash
+   cd /project/scratch/p200981/$USER/benchmarks/Benchmarking-AI-Factories
+   ```
+
+3. Submit the benchmark job:
+   ```bash
+   sbatch run_benchmark.sh
+   ```
+
+4. Monitor job status:
+   ```bash
+   squeue -u $USER
+   ```
+
+## Configuration
+
+### Changing the Benchmark Type
+
+Edit `run_benchmark.sh` and modify the `RECIPE_PATH` variable:
+
+```bash
+# For vLLM inference benchmark
+RECIPE_PATH="${PROJECT_DIR}/Recipes/vLLM_InferenceRecipe.yaml"
+
+# For S3 storage benchmark
+RECIPE_PATH="${PROJECT_DIR}/Recipes/S3_UploadRecipe.yaml"
+```
+
+## Troubleshooting
+
+### SSH Connection Failed
+
+Ensure your SSH config has a `meluxina` host entry:
+
+```
+Host meluxina
+    HostName login.lxp.lu
+    User your-username
+    Port 8822
+    IdentityFile ~/.ssh/id_ed25519_mlux
+```
+
+### Docker Not Running
+
+On Windows, start Docker Desktop and ensure WSL integration is enabled.
+
+### Job Timeout
+
+Check Slurm logs in `slurm_logs/` directory. Common issues:
+- GPU not available (use `--partition=gpu`)
+- Model download taking too long (pre-cache in HF_HOME)
+
+### Grafana Shows No Data
+
+1. Check that FastAPI server is running: http://localhost:8000/defaults
+2. Verify results were synced: check `results_*/` directory
+3. Ensure metrics JSON files exist: `*_parsed.json`
+
+## License
+
+This project is part of the EUMaster4HPC program.

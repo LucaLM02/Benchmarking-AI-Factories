@@ -28,6 +28,27 @@ STACK_STARTED=0
 TMP_COMPOSE_FILE=""
 
 # ------------------------------------------
+# SERVICE-SPECIFIC METRIC DEFAULTS
+# ------------------------------------------
+# Detect service type from recipe file (set later in detect_service_type)
+SERVICE_TYPE="unknown"
+
+# S3/MinIO metric defaults
+S3_METRIC1="minio_s3_requests_total"
+S3_METRIC2="minio_s3_traffic_sent_bytes"
+S3_METRIC3="minio_s3_requests_ttfb_seconds_distribution"
+
+# vLLM metric defaults
+VLLM_METRIC1="http_request_duration_highr_seconds_count"
+VLLM_METRIC2="vllm:num_requests_running"
+VLLM_METRIC3="http_request_duration_highr_seconds_bucket"
+
+# Active metrics (set by detect_service_type)
+DASHBOARD_METRIC1=""
+DASHBOARD_METRIC2=""
+DASHBOARD_METRIC3=""
+
+# ------------------------------------------
 # FUNCTIONS
 # ------------------------------------------
 
@@ -41,6 +62,56 @@ log_error() {
 
 log_warn() {
     echo "[WARN] $(date '+%Y-%m-%d %H:%M:%S') - $*"
+}
+
+detect_service_type() {
+    # Detect service type by reading the RECIPE_PATH from run_benchmark.sh
+    local run_script="${PROJECT_ROOT}/run_benchmark.sh"
+    local recipe_path=""
+    
+    # Extract RECIPE_PATH value from run_benchmark.sh
+    if [ -f "$run_script" ]; then
+        recipe_path=$(grep -oP 'RECIPE_PATH="\K[^"]+' "$run_script" 2>/dev/null | head -1)
+        # Handle ${PROJECT_DIR} variable substitution
+        recipe_path=$(echo "$recipe_path" | sed "s|\${PROJECT_DIR}|${PROJECT_ROOT}|g")
+    fi
+    
+    if [ -z "$recipe_path" ] || [ ! -f "$recipe_path" ]; then
+        log_warn "Could not find recipe path in run_benchmark.sh, scanning Recipes folder..."
+        recipe_path=$(find "${PROJECT_ROOT}/Recipes" -name "*.yaml" -o -name "*.yml" 2>/dev/null | head -1)
+    fi
+    
+    if [ -n "$recipe_path" ] && [ -f "$recipe_path" ]; then
+        local recipe_name=$(basename "$recipe_path" | tr '[:upper:]' '[:lower:]')
+        log_info "Active recipe: $(basename "$recipe_path")"
+        
+        # Check for vLLM indicators
+        if [[ "$recipe_name" == *"vllm"* ]]; then
+            SERVICE_TYPE="vllm"
+            DASHBOARD_METRIC1="${VLLM_METRIC1}"
+            DASHBOARD_METRIC2="${VLLM_METRIC2}"
+            DASHBOARD_METRIC3="${VLLM_METRIC3}"
+            log_info "Detected service type: vLLM (metrics: RPS, Concurrent Requests, Latency)"
+            return
+        fi
+        
+        # Check for S3/MinIO indicators
+        if [[ "$recipe_name" == *"s3"* ]] || [[ "$recipe_name" == *"minio"* ]]; then
+            SERVICE_TYPE="s3"
+            DASHBOARD_METRIC1="${S3_METRIC1}"
+            DASHBOARD_METRIC2="${S3_METRIC2}"
+            DASHBOARD_METRIC3="${S3_METRIC3}"
+            log_info "Detected service type: S3/MinIO (metrics: Throughput, Bandwidth, TTFB)"
+            return
+        fi
+    fi
+    
+    # Default to vLLM if no specific detection
+    SERVICE_TYPE="vllm"
+    DASHBOARD_METRIC1="${VLLM_METRIC1}"
+    DASHBOARD_METRIC2="${VLLM_METRIC2}"
+    DASHBOARD_METRIC3="${VLLM_METRIC3}"
+    log_warn "Could not detect service type, defaulting to vLLM"
 }
 
 force_clean_path() {
@@ -248,6 +319,9 @@ start_full_stack_docker() {
     TMP_DASHBOARD_PROVIDER="${TMP_DASHBOARDS_DIR}/dashboards.yaml"
     TMP_DASHBOARD_JSON="${TMP_JSON_DIR}/default_dashboard.json"
 
+    # Detect service type and set appropriate metric defaults
+    detect_service_type
+
     log_info "Generating Grafana Provisioning config..."
     cat > "${TMP_DATASOURCE_FILE}" <<EOF
 apiVersion: 1
@@ -261,105 +335,78 @@ datasources:
 EOF
 
     log_info "Generating Default Dashboard..."
-    # Create a simple dashboard that has a variable for metrics and a graph
+    # Create a dashboard with 3 metric panels, each driven by a variable
+    # Defaults are set based on common metrics for S3 (MinIO) and vLLM
     cat > "${TMP_DASHBOARD_JSON}" <<EOF
 {
   "annotations": {
-    "list": [
-      {
-        "builtIn": 1,
-        "datasource": "-- Grafana --",
-        "enable": true,
-        "hide": true,
-        "iconColor": "rgba(0, 211, 255, 1)",
-        "name": "Annotations & Alerts",
-        "type": "dashboard"
-      }
-    ]
+    "list": []
   },
   "editable": true,
-  "gnetId": null,
   "graphTooltip": 0,
   "id": null,
   "links": [],
   "panels": [
     {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 0
+      "datasource": "BenchmarkData",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "auto", "spanNulls": true }
+        },
+        "overrides": []
       },
-      "id": 10,
-      "panels": [],
-      "title": "Key Metrics (Throughput & I/O)",
-      "type": "row"
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "refId": "A", "target": "\$Metric1", "type": "timeserie" }
+      ],
+      "title": "Panel 1: \$Metric1",
+      "type": "timeseries"
     },
     {
       "datasource": "BenchmarkData",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
-          "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "auto" },
-          "unit": "bytes"
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "showPoints": "auto", "spanNulls": true }
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 1 },
-      "id": 11,
+      "gridPos": { "h": 10, "w": 12, "x": 12, "y": 0 },
+      "id": 2,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
       "targets": [
-        { "refId": "A", "target": "minio_s3_requests_total", "type": "timeserie" }
+        { "refId": "A", "target": "\$Metric2", "type": "timeserie" }
       ],
-      "title": "Throughput (S3 Requests Total)",
+      "title": "Panel 2: \$Metric2",
       "type": "timeseries"
     },
     {
       "datasource": "BenchmarkData",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
+      "fieldConfig": {
+        "defaults": {}
       },
-      "id": 4,
-      "targets": [
-        {
-          "refId": "A",
-          "target": "minio_s3_traffic_received_bytes",
-          "type": "timeserie"
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 10 },
+      "id": 3,
+      "options": {
+        "calculate": false,
+        "cellGap": 1,
+        "color": {
+          "mode": "scheme",
+          "scheme": "Spectral",
+          "steps": 64
         },
-        {
-           "refId": "B",
-           "target": "minio_s3_traffic_sent_bytes",
-           "type": "timeserie"
+        "yAxis": {
+          "axisPlacement": "left",
+          "unit": "s"
         }
-      ],
-      "title": "S3 Bandwidth (Ingress/Egress)",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 10
       },
-      "id": 20,
-      "panels": [],
-      "title": "Metric Explorer",
-      "type": "row"
-    },
-    {
-      "datasource": "BenchmarkData",
-      "description": "Select metrics from the dropdown above to visualize them here. (Optimized for Histograms/Heatmaps)",
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 11 },
-      "id": 21,
       "targets": [
-        { "refId": "A", "target": "\$Metric", "type": "timeserie" }
+        { "refId": "A", "target": "\$Metric3", "type": "timeserie" }
       ],
-      "title": "Custom Metrics (Heatmap)",
+      "title": "Panel 3 (Heatmap): \$Metric3",
       "type": "heatmap"
     }
   ],
@@ -369,41 +416,67 @@ EOF
   "templating": {
     "list": [
       {
-        "allValue": null,
-        "current": {},
+        "current": { "text": "${DASHBOARD_METRIC1}", "value": "${DASHBOARD_METRIC1}" },
         "datasource": "BenchmarkData",
         "definition": "",
         "hide": 0,
-        "includeAll": true,
-        "label": "Metric",
-        "multi": true,
-        "name": "Metric",
+        "includeAll": false,
+        "label": "Metric 1 (Throughput/RPS)",
+        "multi": false,
+        "name": "Metric1",
         "options": [],
         "query": "*",
         "refresh": 1,
         "regex": "",
-        "skipUrlSync": false,
         "sort": 1,
-        "tagValuesQuery": "",
-        "tags": [],
-        "tagsQuery": "",
-        "type": "query",
-        "useTags": false
+        "type": "query"
+      },
+      {
+        "current": { "text": "${DASHBOARD_METRIC2}", "value": "${DASHBOARD_METRIC2}" },
+        "datasource": "BenchmarkData",
+        "definition": "",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Metric 2 (Concurrent/Bandwidth)",
+        "multi": false,
+        "name": "Metric2",
+        "options": [],
+        "query": "*",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": { "text": "${DASHBOARD_METRIC3}", "value": "${DASHBOARD_METRIC3}" },
+        "datasource": "BenchmarkData",
+        "definition": "",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Metric 3 (Latency Heatmap)",
+        "multi": false,
+        "name": "Metric3",
+        "options": [],
+        "query": "*",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
       }
     ]
   },
   "time": {
-    "from": "now-7d",
+    "from": "now-15m",
     "to": "now"
   },
   "timepicker": {
-    "refresh_intervals": ["5s","10s","30s","1m","5m","15m","30m","1h","2h","1d"]
+    "refresh_intervals": ["5s","10s","30s","1m","5m"]
   },
+  "refresh": "5s",
   "timezone": "",
   "title": "Benchmark Results",
-  "uid": "verif_dashboard",
-  "version": 1,
-  "weekStart": ""
+  "uid": "benchmark_dashboard",
+  "version": 1
 }
 EOF
 

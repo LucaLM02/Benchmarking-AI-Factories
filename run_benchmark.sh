@@ -4,7 +4,7 @@
 #SBATCH --account=p200981
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --time=00:15:00
+#SBATCH --time=00:30:00
 #SBATCH --partition=gpu
 #SBATCH --chdir=/project/scratch/p200981/%u/benchmarks/Benchmarking-AI-Factories
 #SBATCH --output=/project/scratch/p200981/%u/benchmarks/slurm_logs/%x_%j.out
@@ -43,6 +43,7 @@ JOB_NAME="benchmark_run"
 
 # Assume the script is executed from the project root
 PROJECT_DIR="$(pwd)"
+export PROJECT_DIR
 echo "[INFO] Current working directory set as project root: ${PROJECT_DIR}"
 
 # Define workspace dynamically under SCRATCH (project area)
@@ -52,7 +53,7 @@ mkdir -p "${SCRATCH_BASE}/benchmarks" "${SCRATCH_BASE}/benchmarks/slurm_logs"
 WORKSPACE="${SCRATCH_BASE}/benchmarks/${JOB_NAME}_$(date +%Y%m%d_%H%M%S)"
 export WORKSPACE
 
-RECIPE_PATH="${PROJECT_DIR}/Recipes/Meluxina_DataIngestionRecipe.yaml"
+RECIPE_PATH="${PROJECT_DIR}/Recipes/vLLM_InferenceRecipe.yaml"
 
 # Create workspace directory for this run
 mkdir -p "${WORKSPACE}"
