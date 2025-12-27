@@ -112,6 +112,25 @@ RECIPE_PATH="${PROJECT_DIR}/Recipes/vLLM_InferenceRecipe.yaml"
 RECIPE_PATH="${PROJECT_DIR}/Recipes/S3_UploadRecipe.yaml"
 ```
 
+## Container Images
+
+The benchmark uses Apptainer SIF images for running services. If images are not available in the `images/` directory, you need to build them.
+
+### Option A: Build Locally (Recommended)
+
+Requires Docker Desktop and Apptainer installed locally:
+
+```bash
+# Install Apptainer on WSL/Ubuntu
+sudo apt install apptainer
+
+# Build images
+cd Benchmarking-AI-Factories
+sudo bash scripts/build_images_local.sh
+```
+
+This creates SIF files in `images/` that are synced to MeluXina automatically.
+
 ## Troubleshooting
 
 ### SSH Connection Failed
@@ -138,7 +157,7 @@ Check Slurm logs in `slurm_logs/` directory. Common issues:
 
 ### Grafana Shows No Data
 
-1. Check that FastAPI server is running: http://localhost:8000/defaults
+1. Check that FastAPI server is running
 2. Verify results were synced: check `results_*/` directory
 3. Ensure metrics JSON files exist: `*_parsed.json`
 
