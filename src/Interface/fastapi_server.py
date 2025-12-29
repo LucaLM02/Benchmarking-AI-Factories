@@ -189,15 +189,99 @@ def extract_time_series(parsed_data, metric_name: str, apply_rate: bool = True):
 
 
 def _is_counter_metric(metric_name: str) -> bool:
-    """Detect if metric is a counter based on naming conventions."""
-    counter_suffixes = ["_total", "_count", "_sum", "_bytes_total", "_seconds_total"]
+    """Detect if metric is a counter based on naming conventions.
+    
+    Counters are monotonically increasing values that should have rate() applied.
+    Gauges are point-in-time values that should be shown raw.
+    
+    Returns:
+        True if the metric is a counter (needs rate calculation)
+        False if the metric is a gauge (show raw values)
+    """
+    # Explicit gauge patterns - these should NEVER have rate() applied
+    gauge_patterns = [
+        "vllm:num_requests_running",
+        "vllm:num_requests_waiting",
+        "vllm:num_requests_swapped",
+        "vllm:gpu_cache_usage_perc",
+        "vllm:cpu_cache_usage_perc",
+        "_gauge",
+        "_info",
+        "_ratio",
+        "_percent",
+        "_usage",
+        "_available",
+        "_capacity",
+        "_active",
+        "_current",
+        "_running",
+        "_waiting",
+        "_size",
+    ]
+    
+    # Check for explicit gauge patterns first
+    metric_lower = metric_name.lower()
+    for pattern in gauge_patterns:
+        if pattern.lower() in metric_lower:
+            return False
+    
+    # Standard Prometheus counter suffixes
+    counter_suffixes = [
+        "_total",
+        "_count",
+        "_sum",
+        "_bucket",
+        "_bytes_total",
+        "_seconds_total",
+    ]
     for suffix in counter_suffixes:
         if metric_name.endswith(suffix):
             return True
     
-    # Histogram buckets are also counters
-    if metric_name.endswith("_bucket"):
-        return True
+    # MinIO-specific counter patterns (these lack _total suffix but ARE counters)
+    minio_counter_patterns = [
+        "minio_s3_traffic_sent_bytes",
+        "minio_s3_traffic_received_bytes",
+        "minio_s3_requests_total",
+        "minio_s3_requests_errors_total",
+        "minio_s3_requests_rejected_",
+        "minio_node_file_descriptor_open_total",
+        "minio_node_io_rchar_bytes",
+        "minio_node_io_wchar_bytes",
+        "minio_node_io_read_bytes",
+        "minio_node_io_write_bytes",
+        "minio_node_syscall_read_total",
+        "minio_node_syscall_write_total",
+        "minio_bucket_traffic_sent_bytes",
+        "minio_bucket_traffic_received_bytes",
+        "minio_bucket_objects_size_distribution",
+    ]
+    for pattern in minio_counter_patterns:
+        if metric_name.startswith(pattern):
+            return True
+    
+    # Additional counter patterns (traffic bytes, requests patterns)
+    general_counter_patterns = [
+        "_bytes",           # Generic bytes transferred (often counters)
+        "_requests",        # Request counts
+        "_operations",      # Operation counts
+        "_errors",          # Error counts
+        "_failures",        # Failure counts
+        "_success",         # Success counts
+        "_hits",            # Cache hits
+        "_misses",          # Cache misses
+    ]
+    
+    # Only apply these for MinIO metrics to avoid false positives
+    if metric_name.startswith("minio_"):
+        for pattern in general_counter_patterns:
+            if pattern in metric_lower and not metric_name.endswith("_bucket"):
+                return True
+    
+    # vLLM HTTP metrics (from uvicorn) are counters
+    if metric_name.startswith("http_request_duration_"):
+        if metric_name.endswith(("_count", "_sum", "_bucket")):
+            return True
     
     return False
 

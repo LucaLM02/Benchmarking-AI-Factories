@@ -83,10 +83,11 @@ detect_service_type() {
     
     if [ -n "$recipe_path" ] && [ -f "$recipe_path" ]; then
         local recipe_name=$(basename "$recipe_path" | tr '[:upper:]' '[:lower:]')
+        local recipe_content=$(cat "$recipe_path" 2>/dev/null | tr '[:upper:]' '[:lower:]')
         log_info "Active recipe: $(basename "$recipe_path")"
         
-        # Check for vLLM indicators
-        if [[ "$recipe_name" == *"vllm"* ]]; then
+        # Check for vLLM indicators (in name OR content)
+        if [[ "$recipe_name" == *"vllm"* ]] || [[ "$recipe_content" == *"vllm"* ]]; then
             SERVICE_TYPE="vllm"
             DASHBOARD_METRIC1="${VLLM_METRIC1}"
             DASHBOARD_METRIC2="${VLLM_METRIC2}"
@@ -95,8 +96,10 @@ detect_service_type() {
             return
         fi
         
-        # Check for S3/MinIO indicators
-        if [[ "$recipe_name" == *"s3"* ]] || [[ "$recipe_name" == *"minio"* ]]; then
+        # Check for S3/MinIO indicators (in name OR content)
+        if [[ "$recipe_name" == *"s3"* ]] || [[ "$recipe_name" == *"minio"* ]] || \
+           [[ "$recipe_content" == *"minio"* ]] || [[ "$recipe_content" == *"s3-upload"* ]] || \
+           [[ "$recipe_content" == *"s3_upload"* ]]; then
             SERVICE_TYPE="s3"
             DASHBOARD_METRIC1="${S3_METRIC1}"
             DASHBOARD_METRIC2="${S3_METRIC2}"
