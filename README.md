@@ -16,6 +16,24 @@ The following diagram shows the system architecture:
 
 ![System Architecture](docs/design.png)
 
+## Benchmark Demos
+
+The following recordings demonstrate the execution of the benchmarks, highlighting the real-time log generation (auto-discovery of models, throughput stats) and the corresponding visualization in Grafana.
+
+### S3 Object Storage (MinIO)
+
+
+https://github.com/user-attachments/assets/3bc403c5-f7a9-48f0-bf3b-8ee4c76276a6
+
+
+
+### vLLM Inference
+
+
+https://github.com/user-attachments/assets/2ea1de8c-8322-49c3-828a-1187d1fdcd1e
+
+
+
 ## Requirements
 
 ### Local Machine (Windows WSL / Linux)
