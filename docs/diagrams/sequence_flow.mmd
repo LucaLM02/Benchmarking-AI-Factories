@@ -1,0 +1,84 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'actorLineColor': '#333', 'signalColor': '#333'}}}%%
+sequenceDiagram
+    autonumber
+    
+    participant User
+    participant CLI as CLI.py
+    participant BM as BenchmarkManager
+    participant Monitor as PrometheusMonitor
+    participant Logger as FileLogger
+    participant Executor as ProcessExecutor
+    participant Server as vLLM Server
+    participant Client as Workload Runner
+
+    rect rgb(240, 248, 255)
+        Note over User,BM: Phase 1: Recipe Loading & Validation
+        User->>CLI: python CLI.py --load recipe.yaml --run
+        CLI->>BM: load_recipe(path)
+        BM->>BM: validate_recipe()
+        BM->>BM: _expand_client_specs()
+    end
+
+    rect rgb(255, 248, 240)
+        Note over BM,Logger: Phase 2: Component Initialization
+        BM->>Logger: FileLogger(log_dir, filename)
+        Logger-->>BM: logger instance
+        BM->>Monitor: PrometheusMonitor(targets, interval)
+        Monitor-->>BM: monitor instance
+        BM->>Monitor: start()
+        Note right of Monitor: Spawns background<br/>scraping thread
+    end
+
+    rect rgb(240, 255, 240)
+        Note over BM,Server: Phase 3: Server Launch & Health Check
+        BM->>Executor: ProcessExecutor()
+        BM->>BM: create Server(executor, command)
+        BM->>Server: start_service()
+        Executor->>Server: apptainer exec --nv ... vllm.api_server
+        Note right of Server: Server starting up...
+        
+        loop Healthcheck Loop (max timeout)
+            BM->>Server: GET /health
+            alt Server not ready
+                Server-->>BM: Connection refused
+                Note right of BM: Wait 5s, retry
+            else Server ready
+                Server-->>BM: HTTP 200 OK
+            end
+        end
+        Note over BM: Service vllm-01 is ready
+    end
+
+    rect rgb(255, 245, 238)
+        Note over BM,Client: Phase 4: Client Launch & Benchmark Execution
+        BM->>BM: create Client(workload_executor, config)
+        BM->>Client: start_workload()
+        Note right of Client: Spawns N worker threads<br/>(ThreadPoolExecutor)
+        
+        par Concurrent Workers
+            loop Duration (120s)
+                Client->>Server: POST /v1/completions
+                Server-->>Client: Response + tokens
+                Note right of Client: Record latency
+            end
+        and Prometheus Scraping
+            loop Every 5s
+                Monitor->>Server: GET /metrics
+                Server-->>Monitor: Prometheus text format
+                Monitor->>Monitor: parse_metrics()
+                Monitor->>Monitor: buffer.append(snapshot)
+            end
+        end
+    end
+
+    rect rgb(248, 240, 255)
+        Note over BM,Logger: Phase 5: Post-Actions & Cleanup
+        BM->>BM: execute_post_actions()
+        BM->>Monitor: stop()
+        Monitor->>Monitor: save metrics to JSON
+        Monitor-->>BM: vllm_metrics.json saved
+        BM->>Executor: stop()
+        Executor->>Server: SIGTERM
+        BM->>BM: cleanup (remove hf-cache)
+        BM-->>User: Results in workspace/
+    end

@@ -53,7 +53,7 @@ mkdir -p "${SCRATCH_BASE}/benchmarks" "${SCRATCH_BASE}/benchmarks/slurm_logs"
 WORKSPACE="${SCRATCH_BASE}/benchmarks/${JOB_NAME}_$(date +%Y%m%d_%H%M%S)"
 export WORKSPACE
 
-RECIPE_PATH="${PROJECT_DIR}/Recipes/vLLM_InferenceRecipe.yaml"
+RECIPE_PATH="${PROJECT_DIR}/Recipes/Meluxina_DataIngestionRecipe.yaml"
 
 # Create workspace directory for this run
 mkdir -p "${WORKSPACE}"

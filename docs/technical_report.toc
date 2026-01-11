@@ -1,0 +1,35 @@
+\babel@toc {english}{}\relax 
+\contentsline {section}{\numberline {1}Executive Summary and Introduction}{3}{section.1}%
+\contentsline {subsection}{\numberline {1.1}Context: AI Factories in Europe}{3}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}Project Objective}{3}{subsection.1.2}%
+\contentsline {section}{\numberline {2}System Architecture}{3}{section.2}%
+\contentsline {subsection}{\numberline {2.1}High-Level Overview}{3}{subsection.2.1}%
+\contentsline {subsubsection}{\numberline {2.1.1}Module Responsibilities}{4}{subsubsection.2.1.1}%
+\contentsline {subsection}{\numberline {2.2}HPC Integration}{4}{subsection.2.2}%
+\contentsline {subsubsection}{\numberline {2.2.1}SLURM Workload Manager Interaction}{5}{subsubsection.2.2.1}%
+\contentsline {section}{\numberline {3}Core Components and Design}{5}{section.3}%
+\contentsline {subsection}{\numberline {3.1}Abstract Base Classes and Contracts}{5}{subsection.3.1}%
+\contentsline {subsubsection}{\numberline {3.1.1}The Executor Contract}{5}{subsubsection.3.1.1}%
+\contentsline {subsubsection}{\numberline {3.1.2}Monitor and Logger Contracts}{5}{subsubsection.3.1.2}%
+\contentsline {subsection}{\numberline {3.2}The Service Composition Layer}{6}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}Server and Client Modules}{6}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}Monitor Module: Prometheus Metrics Collection}{6}{subsection.3.4}%
+\contentsline {subsection}{\numberline {3.5}Logger Module: Thread-Safe Logging}{6}{subsection.3.5}%
+\contentsline {subsection}{\numberline {3.6}Design Patterns Summary}{6}{subsection.3.6}%
+\contentsline {section}{\numberline {4}Execution Flow and Logic}{7}{section.4}%
+\contentsline {subsection}{\numberline {4.1}The Recipe Concept}{7}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}Sequence of Events}{7}{subsection.4.2}%
+\contentsline {section}{\numberline {5}Implementation Details}{9}{section.5}%
+\contentsline {subsection}{\numberline {5.1}Technology Stack}{9}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}Error Handling Strategy}{9}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}Extensibility: Adding New Workloads}{9}{subsection.5.3}%
+\contentsline {section}{\numberline {6}Experimental Setup and Methodology}{9}{section.6}%
+\contentsline {subsection}{\numberline {6.1}MeluXina Environment}{9}{subsection.6.1}%
+\contentsline {section}{\numberline {7}Results and Performance Analysis}{10}{section.7}%
+\contentsline {subsection}{\numberline {7.1}Metrics Visualization Infrastructure}{10}{subsection.7.1}%
+\contentsline {subsection}{\numberline {7.2}vLLM Inference Benchmark Results}{10}{subsection.7.2}%
+\contentsline {subsection}{\numberline {7.3}MinIO S3 Storage Benchmark Results}{11}{subsection.7.3}%
+\contentsline {subsection}{\numberline {7.4}Output Data Structure}{12}{subsection.7.4}%
+\contentsline {section}{\numberline {8}Conclusion and Future Work}{12}{section.8}%
+\contentsline {subsection}{\numberline {8.1}Achievements}{12}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Future Work}{12}{subsection.8.2}%

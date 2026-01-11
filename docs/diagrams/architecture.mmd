@@ -1,0 +1,59 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#4a90d9', 'secondaryColor': '#f0f0f0', 'tertiaryColor': '#fff'}}}%%
+graph TD
+    subgraph User Layer
+        User[👤 User]
+    end
+    
+    subgraph Interface Layer
+        CLI["CLI Interface<br/>(CLI.py)"]
+        BM["BenchmarkManager<br/>(Orchestrator)"]
+    end
+    
+    subgraph HPC Layer
+        SLURM["SLURM<br/>Workload Manager"]
+        APPTAINER["Apptainer<br/>Container Runtime"]
+    end
+    
+    subgraph Compute Node
+        SERVER["Server Module<br/>(vLLM, MinIO)"]
+        CLIENT["Client Module<br/>(Load Generator)"]
+        MONITOR["Monitor Module<br/>(Prometheus Scraper)"]
+        LOGGER["Logger Module<br/>(FileLogger)"]
+    end
+    
+    subgraph Storage
+        WORKSPACE["Workspace<br/>(Scratch FS)"]
+        RESULTS["Results<br/>(JSON, Logs)"]
+    end
+    
+    User -->|"Recipe YAML"| CLI
+    CLI -->|"load_recipe()"| BM
+    BM -->|"sbatch / srun"| SLURM
+    SLURM -->|"Allocate GPU Node"| APPTAINER
+    APPTAINER -->|"exec --nv"| SERVER
+    APPTAINER -->|"exec"| CLIENT
+    
+    BM -->|"start()"| MONITOR
+    BM -->|"initialize"| LOGGER
+    
+    CLIENT -.->|"HTTP Requests"| SERVER
+    MONITOR -.->|"GET /metrics"| SERVER
+    
+    SERVER -->|"stdout/stderr"| LOGGER
+    CLIENT -->|"latency data"| LOGGER
+    MONITOR -->|"metrics snapshots"| RESULTS
+    LOGGER -->|"persist"| RESULTS
+    
+    RESULTS --> WORKSPACE
+
+    classDef userStyle fill:#e1f5fe,stroke:#01579b
+    classDef interfaceStyle fill:#fff3e0,stroke:#e65100
+    classDef hpcStyle fill:#fce4ec,stroke:#880e4f
+    classDef computeStyle fill:#e8f5e9,stroke:#1b5e20
+    classDef storageStyle fill:#f3e5f5,stroke:#4a148c
+    
+    class User userStyle
+    class CLI,BM interfaceStyle
+    class SLURM,APPTAINER hpcStyle
+    class SERVER,CLIENT,MONITOR,LOGGER computeStyle
+    class WORKSPACE,RESULTS storageStyle
