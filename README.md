@@ -179,6 +179,10 @@ Check Slurm logs in `slurm_logs/` directory. Common issues:
 2. Verify results were synced: check `results_*/` directory
 3. Ensure metrics JSON files exist: `*_parsed.json`
 
+## Contributors
+
+- **Luca Lamperti** - *Sole Developer & Architect*
+
 ## License
 
 This project is part of the EUMaster4HPC program.
